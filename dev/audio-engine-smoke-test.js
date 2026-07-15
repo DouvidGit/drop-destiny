@@ -2,7 +2,7 @@ const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
 
-const audit = { paramEvents: 0, nodes: 0, starts: 0, stops: 0 };
+const audit = { paramEvents: 0, nodes: 0, starts: 0, stops: 0, maxFinalStarts: 0 };
 
 class Param {
   constructor(value = 0) { this.value = value; }
@@ -143,7 +143,10 @@ async function run() {
       state.performance.events = events;
       const startsBefore = audit.starts;
       audio.playFinalSong(state, () => {});
-      assert(audit.starts - startsBefore > 40, `${genres[i]} scheduled too few audio nodes`);
+      const scheduledStarts = audit.starts - startsBefore;
+      audit.maxFinalStarts = Math.max(audit.maxFinalStarts, scheduledStarts);
+      assert(scheduledStarts > 40, `${genres[i]} scheduled too few audio nodes`);
+      assert(scheduledStarts < 1800, `${genres[i]} scheduled too many audio nodes: ${scheduledStarts}`);
       audio.stopFinalSong();
     }
   }

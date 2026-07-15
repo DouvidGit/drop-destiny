@@ -29,8 +29,10 @@
 - CC0 AKWF 单周期波形与 FM Bass 合成
 - CC0 采样鼓组、Impact、Riser 与 Kick Sidechain
 - 分流派主 Bass 与 Reese / Vowel / Metallic / 808 Glide / Donk 辅助音色
-- i–VI–III–VII 扩展和弦、A/B 主旋律、回应旋律、Arp / Pluck / Screech 配器
-- 音色自动化、House Open Hat、Trap Hat Roll、Dubstep Tom Fill 与多段转场
+- 逐音 Bass 音高、时值、Filter / FM / Wobble articulation 与 A/B 节奏乐句
+- Melodic Dubstep Supersaw 扩展和弦、Saw Lead、回应旋律与稀疏 Bass 点缀
+- 六套分流派 Kick / Snare / Hat 处理、House Open Hat、Trap Hat Roll 与 Dubstep Tom Fill
+- Arp / Pluck / Screech 配器、Crash、Reverse Swell 与多段转场
 - AnalyserNode 实时波形和频谱
 - 无框架、无 CDN、无外部运行时依赖
 

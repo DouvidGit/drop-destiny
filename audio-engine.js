@@ -96,6 +96,9 @@
   var noiseBufferCache = {};
   var currentKickSample = 'kickClean';
   var currentSnareSample = 'snareBeefy';
+  var currentDrumKitId = 'brostep';
+  var currentBassGatePeak = 0.56;
+  var currentSubGatePeak = 0.58;
 
   // ── 最终歌曲播放状态 ───────────────────────────────
   var isFinalSongPlaying = false;
@@ -188,8 +191,8 @@
       b: [0,0,1,0, 0,1,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0, 0,0,1,0, 0,1,0,0, 0,0,1,0]
     },
     melodicDubstep: {
-      a: [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0, 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
-      b: [1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,0,0, 0,0,1,0, 0,1,0,0, 1,0,0,0]
+      a: [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,1,0],
+      b: [1,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,1,0]
     },
     destinyFusion: {
       a: [1,0,0,1, 0,1,0,0, 1,0,0,0, 0,1,0,1, 1,0,0,0, 1,0,1,0, 0,0,1,0, 1,0,0,1],
@@ -203,8 +206,70 @@
     brostep: { bassLayer: 'metallic', chord: 'dark', lead: 'screech' },
     hybridTrap: { bassLayer: '808', chord: 'haze', lead: 'pluck' },
     bassHouse: { bassLayer: 'donk', chord: 'stab', lead: 'pluck' },
-    melodicDubstep: { bassLayer: 'reese', chord: 'wide', lead: 'anthem' },
+    melodicDubstep: { bassLayer: 'reese', chord: 'supersaw', lead: 'sawLead' },
     destinyFusion: { bassLayer: 'fusion', chord: 'wide', lead: 'hollow' }
+  };
+
+  var DRUM_KITS = {
+    riddimDubstep: {
+      kick: 'kickTearout', kickGain: 0.62, kickRate: 0.90, kickClick: 0.018, sidechain: 0.48,
+      snare: 'snareWide', snareGain: 0.52, snareRate: 0.91, snareBody: 155, clap: 0,
+      hatMode: 'industrial', hatGain: 0.078, openHatGain: 0.052
+    },
+    brostep: {
+      kick: 'kickTearout', kickGain: 0.70, kickRate: 1.03, kickClick: 0.032, sidechain: 0.54,
+      snare: 'snareWide', snareGain: 0.58, snareRate: 1.04, snareBody: 205, clap: 0.07,
+      hatMode: 'bright', hatGain: 0.082, openHatGain: 0.055
+    },
+    hybridTrap: {
+      kick: 'kickClean', kickGain: 0.68, kickRate: 0.86, kickClick: 0.014, sidechain: 0.46,
+      snare: 'snareBeefy', snareGain: 0.56, snareRate: 0.92, snareBody: 175, clap: 0.18,
+      hatMode: 'trap', hatGain: 0.092, openHatGain: 0.058
+    },
+    bassHouse: {
+      kick: 'kickClean', kickGain: 0.74, kickRate: 1.05, kickClick: 0.026, sidechain: 0.50,
+      snare: 'snareBeefy', snareGain: 0.48, snareRate: 1.10, snareBody: 225, clap: 0.15,
+      hatMode: 'house', hatGain: 0.084, openHatGain: 0.068
+    },
+    melodicDubstep: {
+      kick: 'kickClean', kickGain: 0.58, kickRate: 0.96, kickClick: 0.012, sidechain: 0.42,
+      snare: 'snareWide', snareGain: 0.46, snareRate: 0.98, snareBody: 185, clap: 0.10,
+      hatMode: 'airy', hatGain: 0.072, openHatGain: 0.060
+    },
+    destinyFusion: {
+      kick: 'kickTearout', kickGain: 0.64, kickRate: 0.98, kickClick: 0.025, sidechain: 0.50,
+      kickLayer: 'kickClean', kickLayerGain: 0.20,
+      snare: 'snareWide', snareGain: 0.52, snareRate: 1.00, snareBody: 190, clap: 0.09,
+      snareLayer: 'snareBeefy', snareLayerGain: 0.18,
+      hatMode: 'fusion', hatGain: 0.082, openHatGain: 0.060
+    }
+  };
+
+  var GENRE_DRUM_GRIDS = {
+    riddimDubstep: {
+      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], blend: false
+    },
+    brostep: {
+      kick:  [1,0,1,0, 0,1,0,0, 0,0,1,0, 0,0,1,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,1], blend: true
+    },
+    hybridTrap: {
+      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,0,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], blend: true
+    },
+    bassHouse: {
+      kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+      snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], blend: false
+    },
+    melodicDubstep: {
+      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], blend: false
+    },
+    destinyFusion: {
+      kick:  [1,0,0,0, 0,0,0,1, 0,0,0,0, 1,0,0,0],
+      snare: [0,0,0,0, 1,0,0,0, 0,0,1,0, 0,0,0,0], blend: true
+    }
   };
 
   // Sound World → 频率映射
@@ -346,11 +411,11 @@
     musicBusGain.connect(sumGain);
 
     compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -10;
-    compressor.knee.value = 20;
-    compressor.ratio.value = 6;
+    compressor.threshold.value = -8;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 4.5;
     compressor.attack.value = 0.003;
-    compressor.release.value = 0.1;
+    compressor.release.value = 0.13;
 
     analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
@@ -397,7 +462,7 @@
     bassGate.gain.value = 0;
 
     bassOutGain = ctx.createGain();
-    bassOutGain.gain.value = 0.15;
+    bassOutGain.gain.value = 0.075;
 
     bassOsc.connect(bassFilter);
     bassOsc2.connect(bassFilter);
@@ -415,7 +480,7 @@
     subGate.gain.value = 0;
 
     subGain = ctx.createGain();
-    subGain.gain.value = 0.1;
+    subGain.gain.value = 0.075;
 
     subOsc.connect(subGate);
     subGate.connect(subGain);
@@ -545,87 +610,125 @@
     musicBusGain.gain.exponentialRampToValueAtTime(1, time + 0.17);
   }
 
+  function getDrumKit() {
+    return DRUM_KITS[currentDrumKitId] || DRUM_KITS.brostep;
+  }
+
   function playKick(time) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
-    if (sampleBank[currentKickSample]) {
-      playSample(currentKickSample, t, currentKickSample === 'kickTearout' ? 0.78 : 0.72);
-      sidechainAt(t, currentKickSample === 'kickTearout' ? 0.62 : 0.52);
-      return;
+    var kit = getDrumKit();
+    var kickId = kit.kick || currentKickSample;
+    if (sampleBank[kickId]) {
+      playSample(kickId, t, kit.kickGain, kit.kickRate || 1);
+      if (kit.kickLayer && sampleBank[kit.kickLayer]) {
+        playSample(kit.kickLayer, t, kit.kickLayerGain || 0.18, 1.04);
+      }
+    } else {
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.3);
+      g.gain.setValueAtTime(0.42, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      osc.connect(g);
+      g.connect(sumGain);
+      osc.start(t);
+      osc.stop(t + 0.35);
+      if (currentTracking) currentTracking.push(osc, g);
     }
-    var osc = ctx.createOscillator();
-    var g = ctx.createGain();
-    osc.frequency.setValueAtTime(150, t);
-    osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.3);
-    g.gain.setValueAtTime(0.5, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-    osc.connect(g);
-    g.connect(sumGain);
-    osc.start(t);
-    osc.stop(t + 0.35);
-    if (currentTracking) { currentTracking.push(osc, g); }
-    sidechainAt(t, 0.5);
+
+    if (kit.kickClick) {
+      var click = ctx.createOscillator();
+      var clickGain = ctx.createGain();
+      click.type = 'sine';
+      click.frequency.setValueAtTime(currentDrumKitId === 'bassHouse' ? 2100 : 1550, t);
+      click.frequency.exponentialRampToValueAtTime(180, t + 0.028);
+      clickGain.gain.setValueAtTime(kit.kickClick, t);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+      click.connect(clickGain); clickGain.connect(sumGain);
+      click.start(t); click.stop(t + 0.045);
+      if (currentTracking) currentTracking.push(click, clickGain);
+    }
+    sidechainAt(t, kit.sidechain == null ? 0.48 : kit.sidechain);
   }
 
   function playSnare(time) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
-    if (sampleBank[currentSnareSample]) {
-      playSample(currentSnareSample, t, currentSnareSample === 'snareWide' ? 0.56 : 0.62);
-      return;
+    var kit = getDrumKit();
+    var snareId = kit.snare || currentSnareSample;
+    if (sampleBank[snareId]) {
+      playSample(snareId, t, kit.snareGain, kit.snareRate || 1);
+      if (kit.snareLayer && sampleBank[kit.snareLayer]) {
+        playSample(kit.snareLayer, t + 0.006, kit.snareLayerGain || 0.16, 1.03);
+      }
+      if (kit.clap && sampleBank.clapFat) playSample('clapFat', t + 0.009, kit.clap, 1.02);
+    } else {
+      var dur = 0.15;
+      var src = ctx.createBufferSource();
+      src.buffer = getNoiseBuffer(dur);
+      var noiseGain = ctx.createGain();
+      var noiseFilter = ctx.createBiquadFilter();
+      noiseGain.gain.setValueAtTime(0.18, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      noiseFilter.type = 'highpass'; noiseFilter.frequency.value = 1000;
+      src.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(sumGain);
+      src.start(t); src.stop(t + dur + 0.02);
+      if (currentTracking) currentTracking.push(src, noiseGain, noiseFilter);
     }
-    var dur = 0.15;
-    var bufSize = Math.floor(ctx.sampleRate * dur);
-    var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    var data = buf.getChannelData(0);
-    for (var i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.3));
-    }
-    var src = ctx.createBufferSource();
-    src.buffer = buf;
-    var g = ctx.createGain();
-    g.gain.value = 0.2;
-    var filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1000;
-    src.connect(filter);
-    filter.connect(g);
-    g.connect(sumGain);
-    src.start(t);
-    if (currentTracking) { currentTracking.push(src, g, filter); }
+
+    var body = ctx.createOscillator();
+    var bodyGain = ctx.createGain();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(kit.snareBody || 185, t);
+    body.frequency.exponentialRampToValueAtTime(Math.max(90, (kit.snareBody || 185) * 0.68), t + 0.11);
+    bodyGain.gain.setValueAtTime(currentDrumKitId === 'melodicDubstep' ? 0.025 : 0.04, t);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    body.connect(bodyGain); bodyGain.connect(sumGain);
+    body.start(t); body.stop(t + 0.16);
+    if (currentTracking) currentTracking.push(body, bodyGain);
   }
 
   function playHihat(time, gainVal) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
-    if (sampleBank.hatClosed) {
-      playSample('hatClosed', t, gainVal == null ? 0.48 : Math.max(0.18, gainVal * 7.2), 0.96 + Math.random() * 0.08);
-      return;
-    }
-    var dur = 0.05;
-    var bufSize = Math.floor(ctx.sampleRate * dur);
-    var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    var data = buf.getChannelData(0);
-    for (var i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.1));
-    }
+    var kit = getDrumKit();
+    var mode = kit.hatMode || 'bright';
+    var dur = mode === 'airy' ? 0.12 : (mode === 'house' ? 0.085 : (mode === 'trap' ? 0.042 : 0.06));
     var src = ctx.createBufferSource();
-    src.buffer = buf;
-    var g = ctx.createGain();
-    g.gain.value = gainVal || 0.06;
-    var filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 6000;
-    src.connect(filter);
-    filter.connect(g);
-    g.connect(sumGain);
+    var highpass = ctx.createBiquadFilter();
+    var bandpass = ctx.createBiquadFilter();
+    var gain = ctx.createGain();
+    var peak = gainVal == null ? kit.hatGain : Math.max(kit.hatGain * 0.72, gainVal);
+    src.buffer = getNoiseBuffer(dur);
+    highpass.type = 'highpass';
+    highpass.frequency.value = mode === 'airy' ? 4700 : (mode === 'house' ? 5400 : 6800);
+    bandpass.type = 'bandpass';
+    bandpass.frequency.value = mode === 'trap' ? 10800 : (mode === 'industrial' ? 8800 : 7600);
+    bandpass.Q.value = mode === 'airy' ? 0.7 : 1.25;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(highpass); highpass.connect(bandpass); bandpass.connect(gain); gain.connect(sumGain);
     src.start(t);
-    if (currentTracking) { currentTracking.push(src, g, filter); }
-  }
+    src.stop(t + dur + 0.015);
 
-  function playClap(time, gainValue) {
-    if (sampleBank.clapFat) playSample('clapFat', time, gainValue == null ? 0.34 : gainValue, 1);
-    else playSnare(time);
+    var nodes = [src, highpass, bandpass, gain];
+    if (mode === 'industrial' || mode === 'fusion') {
+      var metal1 = ctx.createOscillator();
+      var metal2 = ctx.createOscillator();
+      var metalGain = ctx.createGain();
+      metal1.type = 'square'; metal2.type = 'square';
+      metal1.frequency.value = mode === 'industrial' ? 6700 : 5900;
+      metal2.frequency.value = mode === 'industrial' ? 9300 : 10400;
+      metalGain.gain.value = 0.10;
+      metal1.connect(metalGain); metal2.connect(metalGain); metalGain.connect(highpass);
+      metal1.start(t); metal2.start(t);
+      metal1.stop(t + dur); metal2.stop(t + dur);
+      nodes.push(metal1, metal2, metalGain);
+    }
+    if (currentTracking) Array.prototype.push.apply(currentTracking, nodes);
   }
 
   function playImpact(time, gainValue) {
@@ -662,23 +765,29 @@
   function playOpenHat(time, gainValue) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
-    var duration = 0.32;
+    var kit = getDrumKit();
+    var duration = currentDrumKitId === 'melodicDubstep' ? 0.46 : (currentDrumKitId === 'bassHouse' ? 0.34 : 0.28);
     var source = ctx.createBufferSource();
     var highpass = ctx.createBiquadFilter();
+    var bandpass = ctx.createBiquadFilter();
     var gain = ctx.createGain();
     source.buffer = getNoiseBuffer(duration);
     highpass.type = 'highpass';
-    highpass.frequency.value = 6200;
+    highpass.frequency.value = currentDrumKitId === 'melodicDubstep' ? 4500 : 5600;
     highpass.Q.value = 0.8;
+    bandpass.type = 'bandpass';
+    bandpass.frequency.value = currentDrumKitId === 'bassHouse' ? 7200 : 8400;
+    bandpass.Q.value = 0.75;
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.linearRampToValueAtTime(gainValue == null ? 0.055 : gainValue, t + 0.004);
+    gain.gain.linearRampToValueAtTime(gainValue == null ? kit.openHatGain : Math.max(gainValue, kit.openHatGain * 0.78), t + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
     source.connect(highpass);
-    highpass.connect(gain);
+    highpass.connect(bandpass);
+    bandpass.connect(gain);
     gain.connect(sumGain);
     source.start(t);
     source.stop(t + duration + 0.02);
-    if (currentTracking) currentTracking.push(source, highpass, gain);
+    if (currentTracking) currentTracking.push(source, highpass, bandpass, gain);
   }
 
   function playCrash(time, gainValue) {
@@ -754,8 +863,8 @@
   function triggerBassNote(time, duration) {
     if (!bassGate || !ctx) return;
     var d = Math.max(0.03, duration);
-    scheduleGateEnvelope(bassGate.gain, time, d, 0.9);
-    if (subGate) scheduleGateEnvelope(subGate.gain, time, d, 0.82);
+    scheduleGateEnvelope(bassGate.gain, time, d, currentBassGatePeak);
+    if (subGate) scheduleGateEnvelope(subGate.gain, time, d, currentSubGatePeak);
   }
 
   function scheduleBassPitch(freq, time) {
@@ -797,7 +906,8 @@
     // Hi-hat
     var hh = currentHihatPat[step];
     if (hh) {
-      playHihat(time, hh > 1 ? 0.04 : 0.07);
+      var loopHatGain = getDrumKit().hatGain;
+      playHihat(time, hh >= 1 ? loopHatGain : loopHatGain * (0.45 + hh));
     }
     // Bass
     if (currentBassPat[step]) {
@@ -878,9 +988,14 @@
 
     // Bass Pattern
     var personality = state.choices.bassPersonality;
-    currentKickSample = (personality === 'brutal' || personality === 'mechanical') ? 'kickTearout' : 'kickClean';
-    currentSnareSample = (personality === 'brutal' || personality === 'mechanical') ? 'snareWide' : 'snareBeefy';
-    if (rId === 'fourOnFloor') currentKickSample = 'kickClean';
+    currentDrumKitId = rId === 'fourOnFloor' ? 'bassHouse' :
+      (rId === 'syncopated' ? 'hybridTrap' : (rId === 'breakbeat' ? 'destinyFusion' :
+        (personality === 'melodic' ? 'melodicDubstep' : (personality === 'mechanical' ? 'riddimDubstep' : 'brostep'))));
+    var loopKit = getDrumKit();
+    currentKickSample = loopKit.kick;
+    currentSnareSample = loopKit.snare;
+    currentBassGatePeak = personality === 'melodic' ? 0.40 : 0.50;
+    currentSubGatePeak = personality === 'melodic' ? 0.43 : 0.52;
     if (personality === 'melodic') {
       currentBassPat = BASS_PATTERNS.melodic;
     } else {
@@ -957,8 +1072,8 @@
 
     // Sub 与中频层独立控制
     currentBodyVal = sub;
-    smoothSet(subGain.gain, 0.015 + sub * 0.31, 0.02);
-    smoothSet(bassOutGain.gain, 0.105 + drive * 0.07, 0.02);
+    smoothSet(subGain.gain, 0.012 + sub * 0.16, 0.02);
+    smoothSet(bassOutGain.gain, 0.055 + drive * 0.045, 0.02);
 
     // Wavetable FM + Filter + Drive
     currentGrowlVal = Math.min(1, fm * 0.45 + drive * 0.55);
@@ -1052,6 +1167,8 @@
 
     if (phase === 'rhythm') {
       // 节奏预览：播放 2 拍 kick/snare
+      currentDrumKitId = optionId === 'fourOnFloor' ? 'bassHouse' :
+        (optionId === 'syncopated' ? 'hybridTrap' : (optionId === 'breakbeat' ? 'destinyFusion' : 'brostep'));
       var bpm = (DRUM_PATTERNS[optionId] || DRUM_PATTERNS.halfTime).bpm;
       var beatDur = 60 / bpm;
       var t = ctx.currentTime;
@@ -1114,13 +1231,14 @@
 
     var filter = ctx.createBiquadFilter();
     var chordGain = ctx.createGain();
-    var peak = (gainValue == null ? 0.04 : gainValue) / Math.max(2.4, semitones.length);
-    var attack = tone === 'stab' ? 0.004 : (tone === 'wide' ? 0.045 : 0.025);
+    var voiceCount = semitones.length * (tone === 'supersaw' ? 2 : 1);
+    var peak = (gainValue == null ? 0.04 : gainValue) / Math.max(2.4, voiceCount);
+    var attack = tone === 'stab' ? 0.004 : (tone === 'supersaw' ? 0.055 : (tone === 'wide' ? 0.045 : 0.025));
     var releaseStart = Math.max(t + attack + 0.01, t + d * (tone === 'stab' ? 0.42 : 0.82));
-    var cutoff = tone === 'wide' ? 5200 : (tone === 'stab' ? 3100 : (tone === 'dark' ? 1250 : 2400));
+    var cutoff = tone === 'supersaw' ? 6800 : (tone === 'wide' ? 5200 : (tone === 'stab' ? 3100 : (tone === 'dark' ? 1250 : 2400)));
 
     filter.type = 'lowpass';
-    filter.Q.value = tone === 'stab' ? 3.2 : 1.1;
+    filter.Q.value = tone === 'stab' ? 3.2 : (tone === 'supersaw' ? 0.75 : 1.1);
     filter.frequency.setValueAtTime(tone === 'stab' ? Math.min(7000, cutoff * 1.8) : cutoff, t);
     filter.frequency.exponentialRampToValueAtTime(Math.max(320, cutoff * (tone === 'stab' ? 0.34 : 0.72)), t + d);
     chordGain.gain.setValueAtTime(0.0001, t);
@@ -1134,16 +1252,20 @@
     var detunes = [-8, 6, -3, 9, 0];
     var nodes = [filter, chordGain];
     for (var i = 0; i < semitones.length; i++) {
-      var osc = ctx.createOscillator();
-      if (tone === 'dark') osc.type = i < 2 ? 'triangle' : 'sine';
-      else if (tone === 'stab') osc.type = i % 2 ? 'square' : 'sawtooth';
-      else osc.type = i % 2 ? 'triangle' : 'sawtooth';
-      osc.frequency.value = root * Math.pow(2, semitones[i] / 12);
-      osc.detune.value = detunes[i % detunes.length];
-      osc.connect(filter);
-      osc.start(t);
-      osc.stop(t + d + 0.06);
-      nodes.push(osc);
+      var copies = tone === 'supersaw' ? 2 : 1;
+      for (var copy = 0; copy < copies; copy++) {
+        var osc = ctx.createOscillator();
+        if (tone === 'supersaw') osc.type = 'sawtooth';
+        else if (tone === 'dark') osc.type = i < 2 ? 'triangle' : 'sine';
+        else if (tone === 'stab') osc.type = i % 2 ? 'square' : 'sawtooth';
+        else osc.type = i % 2 ? 'triangle' : 'sawtooth';
+        osc.frequency.value = root * Math.pow(2, semitones[i] / 12);
+        osc.detune.value = tone === 'supersaw' ? (copy ? 13 + i : -13 - i) : detunes[i % detunes.length];
+        osc.connect(filter);
+        osc.start(t);
+        osc.stop(t + d + 0.06);
+        nodes.push(osc);
+      }
     }
     if (currentTracking) Array.prototype.push.apply(currentTracking, nodes);
   }
@@ -1157,7 +1279,9 @@
     var gain = ctx.createGain();
     var osc1 = ctx.createOscillator();
     var osc2 = ctx.createOscillator();
+    var osc3 = null;
     var peak = gainValue == null ? 0.04 : gainValue;
+    if (tone === 'sawLead') peak *= 0.72;
     var attack = tone === 'pluck' || tone === 'screech' ? 0.004 : 0.018;
 
     if (tone === 'hollow') {
@@ -1166,6 +1290,10 @@
     } else if (tone === 'screech') {
       osc1.type = 'sawtooth'; osc2.type = 'square';
       filter.type = 'bandpass'; filter.frequency.value = Math.max(1600, Math.min(5600, freq * 4.5)); filter.Q.value = 5.5;
+    } else if (tone === 'sawLead') {
+      osc1.type = 'sawtooth'; osc2.type = 'sawtooth';
+      osc3 = ctx.createOscillator(); osc3.type = 'sawtooth';
+      filter.type = 'lowpass'; filter.frequency.value = 7200; filter.Q.value = 1.1;
     } else {
       osc1.type = tone === 'pluck' ? 'triangle' : 'sawtooth';
       osc2.type = tone === 'pluck' ? 'sine' : 'triangle';
@@ -1173,8 +1301,9 @@
     }
     osc1.frequency.value = freq;
     osc2.frequency.value = tone === 'screech' ? freq * 2 : freq;
-    osc1.detune.value = -5;
-    osc2.detune.value = 7;
+    osc1.detune.value = tone === 'sawLead' ? -8 : -5;
+    osc2.detune.value = tone === 'sawLead' ? 8 : 7;
+    if (osc3) { osc3.frequency.value = freq; osc3.detune.value = 0; }
     filter.frequency.setValueAtTime(filter.frequency.value, t);
     if (tone === 'pluck') filter.frequency.exponentialRampToValueAtTime(650, t + d);
     if (tone === 'screech') filter.frequency.exponentialRampToValueAtTime(Math.max(900, freq * 2), t + d);
@@ -1189,12 +1318,18 @@
     }
     osc1.connect(filter);
     osc2.connect(filter);
+    if (osc3) osc3.connect(filter);
     filter.connect(gain);
     gain.connect(musicBusGain);
     if (delaySend && tone !== 'screech') gain.connect(delaySend);
     osc1.start(t); osc2.start(t);
+    if (osc3) osc3.start(t);
     osc1.stop(t + d + 0.05); osc2.stop(t + d + 0.05);
-    if (currentTracking) currentTracking.push(osc1, osc2, filter, gain);
+    if (osc3) osc3.stop(t + d + 0.05);
+    if (currentTracking) {
+      currentTracking.push(osc1, osc2, filter, gain);
+      if (osc3) currentTracking.push(osc3);
+    }
   }
 
   function playBassLayer(freq, duration, mode, gainValue, startTime, glideTo) {
@@ -1279,22 +1414,104 @@
   function scheduleGenreBassLayer(genre, freq, time, stepDur, absoluteStep, phraseStep) {
     var configuredMode = (GENRE_INSTRUMENTATION[genre] || GENRE_INSTRUMENTATION.brostep).bassLayer;
     if (genre === 'riddimDubstep' && [6, 14, 22, 30].indexOf(phraseStep) >= 0) {
-      playBassLayer(freq * 1.5, stepDur * 2.1, configuredMode, 0.038, time);
+      playBassLayer(freq * 1.5, stepDur * 2.1, configuredMode, 0.060, time);
     } else if (genre === 'brostep' && [2, 11, 19, 26].indexOf(phraseStep) >= 0) {
-      playBassLayer(freq * 1.5, stepDur * 1.45, configuredMode, 0.036, time);
+      playBassLayer(freq * 1.5, stepDur * 1.45, configuredMode, 0.058, time);
     } else if (genre === 'hybridTrap' && (absoluteStep % 16 === 0 || phraseStep === 15)) {
       var glideTarget = phraseStep === 15 ? freq * 0.75 : freq;
-      playBassLayer(freq, stepDur * 5.2, configuredMode, 0.052, time, glideTarget);
+      playBassLayer(freq, stepDur * 5.2, configuredMode, 0.070, time, glideTarget);
     } else if (genre === 'bassHouse' && phraseStep % 8 === 2) {
-      playBassLayer(freq * 2, stepDur * 1.2, configuredMode, 0.046, time);
+      playBassLayer(freq * 2, stepDur * 1.2, configuredMode, 0.062, time);
     } else if (genre === 'melodicDubstep' && (absoluteStep % 16 === 0 || phraseStep === 22)) {
-      playBassLayer(freq, stepDur * 4.2, configuredMode, 0.031, time);
+      playBassLayer(freq, stepDur * 3.4, configuredMode, 0.050, time);
     } else if (genre === 'destinyFusion' && [0, 6, 14, 23].indexOf(phraseStep) >= 0) {
       var fusionModes = ['reese', 'metallic', 'vowel'];
       var fusionMode = fusionModes[Math.floor(absoluteStep / 16) % fusionModes.length];
       playBassLayer(fusionMode === 'metallic' ? freq * 1.5 : freq, stepDur * (fusionMode === 'reese' ? 3.4 : 1.8),
-        fusionMode, fusionMode === 'reese' ? 0.03 : 0.034, time);
+        fusionMode, fusionMode === 'reese' ? 0.050 : 0.055, time);
     }
+  }
+
+  function getBassArticulation(genre, phraseStep, absoluteStep, variation) {
+    var group = Math.floor(phraseStep / 4) % 8;
+    var secondHalf = absoluteStep >= 64;
+    var sequences = {
+      riddimDubstep: [0, 0, 7, 0, 12, 0, 7, 12],
+      brostep: [0, 12, 7, 3, 0, 10, 5, 12],
+      hybridTrap: [0, 0, 12, 7, 0, 3, 10, 12],
+      bassHouse: [0, 7, 12, 3, 0, 10, 7, 12],
+      melodicDubstep: [0, 7, 3, 12, 0, 7, 10, 12],
+      destinyFusion: [0, 12, 3, 7, 10, 5, 12, 7]
+    };
+    var sequence = sequences[genre] || sequences.brostep;
+    var index = variation === 'mutate' && secondHalf ? (7 - group) : group;
+    var semitones = sequence[index];
+    var duration = 1.2;
+    var cutoff = 1;
+    var fm = 1;
+    var extraMode = null;
+    var extraGain = 0.042;
+
+    if (genre === 'riddimDubstep') {
+      duration = group % 2 === 0 ? 2.5 : 0.72;
+      cutoff = group % 2 === 0 ? 0.72 : 1.30;
+      fm = group % 3 === 0 ? 0.72 : 1.18;
+      if (group === 0 || group === 4) extraMode = 'reese';
+    } else if (genre === 'brostep') {
+      duration = [0.65, 1.4, 0.72, 1.8, 0.58, 1.2, 0.7, 1.55][group];
+      cutoff = [1.25, 0.68, 1.42, 0.82, 1.12, 0.62, 1.5, 0.92][group];
+      fm = [1.15, 1.45, 0.85, 1.30, 0.72, 1.52, 1.05, 1.35][group];
+      if (group === 3 || group === 5) extraMode = 'vowel';
+      extraGain = 0.052;
+    } else if (genre === 'hybridTrap') {
+      duration = group % 4 === 0 ? 4.2 : (group % 2 ? 0.75 : 1.35);
+      cutoff = group % 2 ? 1.35 : 0.78;
+      fm = group % 3 === 2 ? 1.35 : 0.72;
+      if (group === 2 || group === 6) extraMode = 'metallic';
+      extraGain = 0.045;
+    } else if (genre === 'bassHouse') {
+      duration = group % 2 ? 0.62 : 0.86;
+      cutoff = group % 4 === 3 ? 1.38 : 0.92 + (group % 2) * 0.18;
+      fm = group % 2 ? 0.75 : 1.05;
+      if (group === 3 || group === 7) extraMode = 'reese';
+      extraGain = 0.040;
+    } else if (genre === 'melodicDubstep') {
+      duration = group % 2 === 0 ? 1.65 : 0.92;
+      cutoff = group % 2 === 0 ? 0.74 : 1.08;
+      fm = 0.64;
+      semitones = [0, 7, 3, 12, 0, 7, 10, 12][group];
+    } else if (genre === 'destinyFusion') {
+      duration = [1.8, 0.65, 1.15, 0.72, 2.1, 0.62, 1.35, 0.8][group];
+      cutoff = [0.70, 1.42, 0.92, 1.30, 0.62, 1.50, 0.82, 1.22][group];
+      fm = [0.75, 1.40, 1.10, 0.82, 1.35, 0.68, 1.48, 1.02][group];
+      if (group === 2 || group === 6) extraMode = group === 2 ? 'metallic' : 'vowel';
+      extraGain = 0.050;
+    }
+
+    var microStep = phraseStep % 4;
+    if (genre === 'riddimDubstep' && microStep === 2) {
+      semitones += 12; duration *= 0.58; cutoff *= 1.18;
+    } else if (genre === 'brostep') {
+      if (microStep === 2) { semitones += 12; duration *= 0.52; cutoff *= 1.16; }
+      else if (microStep === 3) { semitones += 7; duration *= 0.68; fm *= 1.12; }
+    } else if (genre === 'hybridTrap' && microStep === 3) {
+      semitones += 12; duration *= 0.62; cutoff *= 1.20;
+    } else if (genre === 'destinyFusion' && microStep === 1) {
+      semitones += 7; duration *= 0.66; fm *= 1.15;
+    }
+
+    return { semitones: semitones, duration: duration, cutoff: cutoff, fm: fm,
+      extraMode: extraMode, extraGain: extraGain };
+  }
+
+  function scheduleBassColor(synth, baseFreq, time, duration, articulation) {
+    if (!bassFilter || !fmGain || !lfoDepth) return;
+    var cutoff = Math.max(80, Math.min(8000, synth.cutoff * articulation.cutoff));
+    var fmBase = Math.pow(synth.fm / 100, 1.35) * baseFreq * 16;
+    var wobbleBase = Math.pow(synth.depth / 100, 1.35) * Math.min(3600, synth.cutoff * 0.88);
+    smoothSet(bassFilter.frequency, cutoff, 0.012, time);
+    smoothSet(fmGain.gain, fmBase * articulation.fm, 0.014, time);
+    smoothSet(lfoDepth.gain, wobbleBase * (articulation.duration < 1 ? 0.55 : 1.08), 0.014, time);
   }
 
   // ── 创建使用当前 Bass 音色的一次性振荡器 ─────────────
@@ -1509,9 +1726,9 @@
     // Drop 强度 → 混音参数
     var intensity;
     if (drop === 'gentle') {
-      intensity = { distortMult: 0.45, gainMult: 0.65, drumDensity: 0, spaceMult: 1.6 };
+      intensity = { distortMult: 0.45, gainMult: 0.72, drumDensity: 0, spaceMult: 1.6 };
     } else if (drop === 'overload') {
-      intensity = { distortMult: 1.9, gainMult: 1.35, drumDensity: 2, spaceMult: 0.6 };
+      intensity = { distortMult: 1.62, gainMult: 1.16, drumDensity: 2, spaceMult: 0.6 };
     } else {
       intensity = { distortMult: 1.0, gainMult: 1.0, drumDensity: 1, spaceMult: 1.0 };
     }
@@ -1556,6 +1773,17 @@
       plan.build.rising = true;
       plan.drop.extraSub = true;
       plan.preDropSilenceSteps = 4;
+    }
+
+    // Melodic Dubstep 的身份由 Supersaw 和弦与 Saw Lead 主导，Bass 只做重拍/句尾点缀。
+    if (genre === 'melodicDubstep') {
+      plan.intro.pad = true;
+      plan.build.pad = true;
+      plan.drop.pad = true;
+      plan.intro.melody = true;
+      plan.build.melody = true;
+      plan.drop.melody = true;
+      plan.build.bass = 'melodic';
     }
 
     return plan;
@@ -1651,8 +1879,19 @@
     var plan = buildSongPlan(state);
     var genrePhrases = GENRE_BASS_PHRASES[plan.genre] || GENRE_BASS_PHRASES.brostep;
     var instrumentation = GENRE_INSTRUMENTATION[plan.genre] || GENRE_INSTRUMENTATION.brostep;
-    currentKickSample = (plan.genre === 'bassHouse' || plan.genre === 'melodicDubstep') ? 'kickClean' : 'kickTearout';
-    currentSnareSample = (plan.genre === 'brostep' || plan.genre === 'riddimDubstep' || plan.genre === 'destinyFusion') ? 'snareWide' : 'snareBeefy';
+    currentDrumKitId = plan.genre;
+    var drumKit = getDrumKit();
+    currentKickSample = drumKit.kick;
+    currentSnareSample = drumKit.snare;
+    if (plan.genre === 'melodicDubstep') {
+      currentBassGatePeak = 0.36; currentSubGatePeak = 0.40;
+    } else if (plan.genre === 'bassHouse') {
+      currentBassGatePeak = 0.45; currentSubGatePeak = 0.46;
+    } else if (plan.genre === 'hybridTrap') {
+      currentBassGatePeak = 0.48; currentSubGatePeak = 0.52;
+    } else {
+      currentBassGatePeak = 0.53; currentSubGatePeak = 0.54;
+    }
     var rId = getRhythmId(state);
     var basePat = DRUM_PATTERNS[rId] || DRUM_PATTERNS.halfTime;
 
@@ -1730,7 +1969,7 @@
           smoothSet(padOsc2.frequency, introChordRoot * Math.pow(2, 7 / 12), 0.08, introChordTime);
         }
         playChord(introChordRoot, introChordTime,
-          15.5 * stepDur, plan.genre === 'melodicDubstep' ? 0.052 : 0.025, introChord.quality,
+          15.5 * stepDur, plan.genre === 'melodicDubstep' ? 0.076 : 0.025, introChord.quality,
           instrumentation.chord === 'stab' ? 'haze' : instrumentation.chord);
       }
     }
@@ -1746,7 +1985,7 @@
       for (var im = 0; im < introMelody.length; im++) {
         var introEvent = introMelody[im];
         playLeadNote(padFreqs[0] * 2 * minorScale[introEvent.note], introStart + introEvent.step * stepDur,
-          introEvent.dur * stepDur, 0.038, instrumentation.lead);
+          introEvent.dur * stepDur, plan.genre === 'melodicDubstep' ? 0.050 : 0.038, instrumentation.lead);
       }
     }
 
@@ -1782,7 +2021,7 @@
         smoothSet(padOsc2.frequency, buildChordRoot * Math.pow(2, 7 / 12), 0.08, buildChordTime);
       }
       playChord(buildChordRoot, buildChordTime,
-        15 * stepDur, plan.genre === 'melodicDubstep' ? 0.048 : 0.018, buildChord.quality,
+        15 * stepDur, plan.genre === 'melodicDubstep' ? 0.070 : 0.018, buildChord.quality,
         instrumentation.chord === 'stab' ? 'haze' : instrumentation.chord);
     }
 
@@ -1830,7 +2069,9 @@
       var shouldHit = rollLocal < 8 ? rollLocal % 4 === 0 : (rollLocal < 12 ? rollLocal % 2 === 0 : true);
       if (shouldHit) {
         var rollTime = buildStart + roll * stepDur;
-        if (sampleBank[currentSnareSample]) playSample(currentSnareSample, rollTime, 0.18 + rollLocal / 16 * 0.18, 0.96 + rollLocal * 0.01);
+        if (sampleBank[currentSnareSample]) playSample(currentSnareSample, rollTime,
+          (0.14 + rollLocal / 16 * 0.16) * (drumKit.snareGain / 0.52),
+          (drumKit.snareRate || 1) * (0.97 + rollLocal * 0.008));
         else playSnare(rollTime);
       }
     }
@@ -1838,7 +2079,7 @@
     // Build-up bass — 后半段进入
     if (plan.build.bass) {
       var bBassMode = plan.build.bass;
-      var bBassPat = bBassMode === 'melodic' ? BASS_PATTERNS.melodic : BASS_PATTERNS.default;
+      var bBassPat = bBassMode === 'melodic' ? GENRE_BASS_PHRASES.melodicDubstep.a : BASS_PATTERNS.default;
       for (var bb = 0; bb < buildSteps; bb++) {
         var bbProg = bb / buildSteps;
         if (bbProg > 0.4 && bBassPat[bb % 32] && buildStart + bb * stepDur < preDropSilenceStart) {
@@ -1871,7 +2112,8 @@
           if (melodyTime < preDropSilenceStart) {
             var buildLift = (buildBar === plan.build.bars - 1 && buildEvent.note >= 4) ? 2 : 1;
             playLeadNote(padFreqs[0] * 2 * minorScale[buildEvent.note] * buildLift, melodyTime,
-              stepDur * (buildEvent.step >= 12 ? 1.2 : 2.1), 0.032 + buildBar * 0.003, instrumentation.lead);
+              stepDur * (buildEvent.step >= 12 ? 1.2 : 2.1),
+              plan.genre === 'melodicDubstep' ? 0.044 + buildBar * 0.002 : 0.032 + buildBar * 0.003, instrumentation.lead);
           }
         }
       }
@@ -1888,7 +2130,7 @@
     var spaceMult = intensity.spaceMult;
 
     bassShaper.curve = makeDistortionCurve(Math.min(1.25, Math.max(0, (origDrive / 100) * distortMult)));
-    smoothSet(bassOutGain.gain, (0.105 + (origDrive / 100) * 0.07) * gainMult, 0.05, dropStart);
+    smoothSet(bassOutGain.gain, (0.055 + (origDrive / 100) * 0.045) * gainMult, 0.05, dropStart);
 
     // Drop pad
     if (plan.drop.pad) {
@@ -1899,7 +2141,7 @@
 
     // Epic Journey: 额外 sub 增强冲击力
     if (plan.drop.extraSub && subGain) {
-      smoothSet(subGain.gain, 0.05 + (origSub / 100) * 0.34, 0.05, dropStart);
+      smoothSet(subGain.gain, 0.025 + (origSub / 100) * 0.18, 0.05, dropStart);
     }
 
     playImpact(dropStart, plan.drop.extraSub ? 1.08 : 0.9);
@@ -1941,19 +2183,34 @@
       var dsTime = dropStart + ds * stepDur;
       var dpi = ds % 32;
       var dKick = false, dSnare = false, dHat = false;
-      var dHatGain = 0.07;
+      var dHatGain = drumKit.hatGain;
+      var rawHat = 0;
 
       if (dDrumMode === 'full') {
         dKick = !!basePat.kick[dpi];
         dSnare = !!basePat.snare[dpi];
-        dHat = !!dropHihatPat[dpi];
-        if (drumDensity === 2) dHatGain = 0.05;
+        rawHat = dropHihatPat[dpi];
+        dHat = !!rawHat;
       } else if (dDrumMode === 'lean') {
         // Minimal Tech: kick + snare + 按 groove density 调整 hi-hat
         dKick = !!basePat.kick[dpi];
         dSnare = !!basePat.snare[dpi];
-        dHat = !!leanHihatPat[dpi];
+        rawHat = leanHihatPat[dpi];
+        dHat = !!rawHat;
       }
+      var genreGrid = GENRE_DRUM_GRIDS[plan.genre];
+      if (genreGrid) {
+        var gridStep = ds % 16;
+        if (genreGrid.blend && dDrumMode === 'full') {
+          dKick = dKick || !!genreGrid.kick[gridStep];
+          dSnare = dSnare || !!genreGrid.snare[gridStep];
+        } else {
+          dKick = !!genreGrid.kick[gridStep];
+          dSnare = !!genreGrid.snare[gridStep];
+        }
+      }
+      if (dHat) dHatGain = rawHat >= 1 ? drumKit.hatGain : drumKit.hatGain * (0.45 + rawHat);
+      if (drumDensity === 2) dHatGain *= 0.88;
 
       // Classic Drop: 跳过第一拍（已用强 kick 覆盖）
       if (plan.drop.pauseBefore && ds === 0) {
@@ -1963,7 +2220,6 @@
       if (dKick) playKick(dsTime);
       if (dSnare) {
         playSnare(dsTime);
-        if (plan.genre === 'hybridTrap' || plan.genre === 'bassHouse') playClap(dsTime + 0.008, 0.22);
       }
       if (dHat) playHihat(dsTime, dHatGain);
 
@@ -2022,7 +2278,12 @@
       var dbTime = dropStart + db * stepDur;
       var isSecondHalf = db >= dropHalfSteps;
       if (isSecondHalf && hasUserPattern) continue;
-      var usePat = isSecondHalf ? dropBassPatB : dropBassPatA;
+      var bassBlock = Math.floor(db / 32);
+      var usePat;
+      if (bassBlock === 0) usePat = dropBassPatA;
+      else if (bassBlock === 1) usePat = genrePhrases.b;
+      else if (plan.variation === 'mutate') usePat = bassBlock === 2 ? dropBassPatB : dropBassPatA;
+      else usePat = bassBlock % 2 ? dropBassPatB : dropBassPatA;
       var useFreq = isSecondHalf ? dropBassFreqB : bassFreq;
 
       if (usePat[db % 32]) {
@@ -2032,17 +2293,26 @@
             plan.genre === 'hybridTrap' || plan.genre === 'destinyFusion') {
           useFreq *= chordProgression[harmonicBar].ratio;
         }
-        var callResponseLift = (plan.genre === 'brostep' || plan.genre === 'destinyFusion') && (phraseStep === 6 || phraseStep === 14 || phraseStep === 23);
-        var arrangedBassFreq = callResponseLift ? useFreq * 1.5 : useFreq;
+        var articulation = getBassArticulation(plan.genre, phraseStep, db, plan.variation);
+        if (chordProgression[harmonicBar].quality === 'major' && articulation.semitones % 12 === 3) {
+          articulation.semitones += 1;
+        }
+        var arrangedBassFreq = useFreq * Math.pow(2, articulation.semitones / 12);
+        var arrangedDuration = stepDur * articulation.duration;
         scheduleBassPitch(arrangedBassFreq, dbTime);
-        triggerBassNote(dbTime, stepDur * (plan.genre === 'bassHouse' ? 0.85 : 1.45));
+        scheduleBassColor(synth, arrangedBassFreq, dbTime, arrangedDuration, articulation);
+        triggerBassNote(dbTime, arrangedDuration);
         scheduleGenreBassLayer(plan.genre, arrangedBassFreq, dbTime, stepDur, db, phraseStep);
+        if (articulation.extraMode) {
+          playBassLayer(arrangedBassFreq, Math.max(stepDur * 0.7, arrangedDuration * 0.82),
+            articulation.extraMode, articulation.extraGain, dbTime);
+        }
       }
     }
 
     // Drop 和弦与旋律分层；旋律流派更宽，其余流派只保留低声部锚点
     for (var dc = 0; dc < plan.drop.bars; dc++) {
-      var chordGain = (plan.genre === 'melodicDubstep' || plan.genre === 'destinyFusion') ? 0.055 : 0.014;
+      var chordGain = plan.genre === 'melodicDubstep' ? 0.082 : (plan.genre === 'destinyFusion' ? 0.055 : 0.014);
       var dropChord = chordProgression[dc % chordProgression.length];
       var dropChordTime = dropStart + dc * 16 * stepDur;
       var dropChordRoot = padFreqs[0] * dropChord.ratio;
@@ -2102,7 +2372,8 @@
           var dropEvent = motif[dm];
           var dropMelodyTime = dropStart + (melodyBlock * 32 + dropEvent.step) * stepDur;
           playLeadNote(padFreqs[0] * 2 * minorScale[dropEvent.note] * melodyTranspose,
-            dropMelodyTime, dropEvent.dur * stepDur, 0.042, instrumentation.lead);
+            dropMelodyTime, dropEvent.dur * stepDur,
+            plan.genre === 'melodicDubstep' ? 0.056 : 0.042, instrumentation.lead);
         }
       }
 
@@ -2131,6 +2402,10 @@
           var ev = evs[e];
           var et = patternOffset + repetition * 8 * dropStepDur8 + ev.step * dropStepDur8;
           if (et >= dropEnd) continue;
+          var patternAbsStep = dropHalfSteps + repetition * 16 + ev.step * 2;
+          var patternPhraseStep = (repetition * 16 + ev.step * 2) % 32;
+          var patternArticulation = getBassArticulation(plan.genre, patternPhraseStep, patternAbsStep, plan.variation);
+          var patternDuration = Math.min(dropStepDur8 * 1.3, stepDur * Math.max(0.75, patternArticulation.duration));
           var patternBassFreq = bassFreq;
           if (plan.genre === 'melodicDubstep' || plan.genre === 'bassHouse' ||
               plan.genre === 'hybridTrap' || plan.genre === 'destinyFusion') {
@@ -2139,16 +2414,18 @@
 
           if (ev.pad === 'D') {
             scheduleBassPitch(patternBassFreq, et);
-            triggerBassNote(et, dropStepDur8 * 0.9);
+            scheduleBassColor(synth, patternBassFreq, et, patternDuration, patternArticulation);
+            triggerBassNote(et, patternDuration);
             scheduleGenreBassLayer(plan.genre, patternBassFreq, et, stepDur,
-              dropHalfSteps + repetition * 16 + ev.step * 2, (repetition * 16 + ev.step * 2) % 32);
+              patternAbsStep, patternPhraseStep);
             playKick(et);
           } else if (ev.pad === 'F') {
             scheduleBassPitch(patternBassFreq * 1.5, et);
-            triggerBassNote(et, dropStepDur8 * 0.9);
+            scheduleBassColor(synth, patternBassFreq * 1.5, et, patternDuration, patternArticulation);
+            triggerBassNote(et, patternDuration);
             scheduleGenreBassLayer(plan.genre, patternBassFreq * 1.5, et, stepDur,
-              dropHalfSteps + repetition * 16 + ev.step * 2, (repetition * 16 + ev.step * 2) % 32);
-            scheduleBassPitch(patternBassFreq, et + dropStepDur8 * 0.9 + 0.01);
+              patternAbsStep, patternPhraseStep);
+            scheduleBassPitch(patternBassFreq, et + patternDuration + 0.01);
           } else if (ev.pad === 'J') {
             playSnare(et);
             playHihat(et + dropStepDur8 * 0.3, 0.05);
