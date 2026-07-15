@@ -1,28 +1,56 @@
 const fs = require('fs');
 const vm = require('vm');
+const assert = require('assert');
+
+const audit = { paramEvents: 0, nodes: 0, starts: 0, stops: 0 };
 
 class Param {
   constructor(value = 0) { this.value = value; }
-  setTargetAtTime(value) { this.value = value; }
-  setValueAtTime(value) { this.value = value; }
-  linearRampToValueAtTime(value) { this.value = value; }
-  exponentialRampToValueAtTime(value) { this.value = value; }
-  cancelScheduledValues() {}
+  check(value, time) {
+    assert(Number.isFinite(value), `Non-finite AudioParam value: ${value}`);
+    if (time != null) assert(Number.isFinite(time) && time >= 0, `Invalid AudioParam time: ${time}`);
+    audit.paramEvents++;
+    this.value = value;
+  }
+  setTargetAtTime(value, time) { this.check(value, time); }
+  setValueAtTime(value, time) { this.check(value, time); }
+  linearRampToValueAtTime(value, time) { this.check(value, time); }
+  exponentialRampToValueAtTime(value, time) {
+    assert(value > 0, `Exponential ramp target must be positive: ${value}`);
+    this.check(value, time);
+  }
+  cancelScheduledValues(time) {
+    if (time != null) assert(Number.isFinite(time) && time >= 0, `Invalid cancellation time: ${time}`);
+  }
 }
 
 class Node {
   constructor() {
+    audit.nodes++;
     this.gain = new Param();
     this.frequency = new Param();
     this.detune = new Param();
     this.Q = new Param();
     this.delayTime = new Param();
     this.playbackRate = new Param(1);
+    this.startedAt = null;
   }
   connect() { return this; }
   disconnect() {}
-  start() {}
-  stop() {}
+  start(time, offset, duration) {
+    if (time != null) assert(Number.isFinite(time) && time >= 0, `Invalid node start time: ${time}`);
+    if (offset != null) assert(Number.isFinite(offset) && offset >= 0, `Invalid source offset: ${offset}`);
+    if (duration != null) assert(Number.isFinite(duration) && duration > 0, `Invalid source duration: ${duration}`);
+    this.startedAt = time == null ? 0 : time;
+    audit.starts++;
+  }
+  stop(time) {
+    if (time != null) {
+      assert(Number.isFinite(time) && time >= 0, `Invalid node stop time: ${time}`);
+      assert(this.startedAt == null || time >= this.startedAt, `Node stops before it starts: ${time} < ${this.startedAt}`);
+    }
+    audit.stops++;
+  }
   setPeriodicWave() {}
 }
 
@@ -101,21 +129,31 @@ async function run() {
 
   const genres = ['riddimDubstep', 'brostep', 'hybridTrap', 'bassHouse', 'melodicDubstep', 'destinyFusion'];
   const waveforms = ['distorted', 'fmRazor', 'granite', 'bitCore', 'vocal'];
+  const structures = ['classicDrop', 'melodicNarrative', 'minimalTech', 'epicJourney'];
   for (let i = 0; i < genres.length; i++) {
     state.result = { primaryStyle: genres[i] };
+    state.choices.structure = structures[i % structures.length];
+    state.choices.variation = ['repeat', 'mutate', 'lift'][i % 3];
     state.synthParams.waveform = waveforms[i % waveforms.length];
     state.synthParams.fm = i % 2 ? 100 : 0;
     state.synthParams.depth = i % 2 ? 0 : 100;
     state.synthParams.cutoff = i % 2 ? 80 : 8000;
     audio.applyState(state);
-    audio.playFinalSong(state, () => {});
-    audio.stopFinalSong();
+    for (const events of [[], data.NEUTRAL_PATTERN.slice()]) {
+      state.performance.events = events;
+      const startsBefore = audit.starts;
+      audio.playFinalSong(state, () => {});
+      assert(audit.starts - startsBefore > 40, `${genres[i]} scheduled too few audio nodes`);
+      audio.stopFinalSong();
+    }
   }
 
   audio.setPaused(false);
   audio.setPaused(true);
   audio.stop();
+  assert(audit.paramEvents > 1000, 'Expected substantial parameter automation coverage');
   console.log('AUDIO_ENGINE_SMOKE_OK');
+  console.log(JSON.stringify(audit));
 }
 
 run().catch(error => {

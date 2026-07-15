@@ -28,7 +28,9 @@
 - Web Audio API 合成与调度
 - CC0 AKWF 单周期波形与 FM Bass 合成
 - CC0 采样鼓组、Impact、Riser 与 Kick Sidechain
-- 分流派 Bass 乐句、和弦进行、A/B 旋律、音色自动化与鼓组过门
+- 分流派主 Bass 与 Reese / Vowel / Metallic / 808 Glide / Donk 辅助音色
+- i–VI–III–VII 扩展和弦、A/B 主旋律、回应旋律、Arp / Pluck / Screech 配器
+- 音色自动化、House Open Hat、Trap Hat Roll、Dubstep Tom Fill 与多段转场
 - AnalyserNode 实时波形和频谱
 - 无框架、无 CDN、无外部运行时依赖
 

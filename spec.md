@@ -116,6 +116,8 @@
 - `Mutate`：更换 Bass 变奏或鼓组 Fill，倾向 Brostep / Hybrid Trap。
 - `Lift`：加入和弦、旋律或升调感，倾向 Melodic Dubstep。
 
+最终编排不只替换 Pattern：统一使用 i–VI–III–VII 调性框架与扩展和弦，并按结局加入不同的第二 Bass（Reese、Vowel、Metallic、808 Glide、Donk）、A/B 主旋律、回应旋律、Arp / Pluck / Screech、Open Hat、Hat Roll、Tom Fill、Crash 与段落 Swell。用户 Pattern 接管 Drop 后半段主 Bass 时，这些和声、配器和鼓组层仍会继续回应用户演奏。
+
 DNA 修正分别为：
 
 - Repeat：Rhythm +10，Surprise −8，Movement −5。
