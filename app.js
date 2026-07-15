@@ -39,6 +39,11 @@
         drop: null
       },
       bassMacros: { body: 50, growl: 50, wobble: 50, space: 50 },
+      synthParams: {
+        waveform: 'distorted', filterType: 'lowpass',
+        sub: 60, fm: 50, cutoff: 1400, resonance: 8,
+        drive: 55, rate: 2, depth: 55, space: 40
+      },
       groove: { density: 1, fillPreference: 1 },
       performance: { events: [], completed: false },
       dna: Object.assign({}, D.INITIAL_DNA),
@@ -121,7 +126,10 @@
       });
     }
 
-    // 预览音效
+    if (phase === 'bassPersonality') applyPresetDefaults(optionId);
+
+    // 预览音效（Bass 先应用预设，确保听到所选音色）
+    AE.applyState(STATE);
     AE.previewChoice(phase, optionId);
 
     // 特殊处理
@@ -132,7 +140,6 @@
       showWorkbench();
     }
     if (phase === 'bassPersonality') {
-      applyPresetDefaults(optionId);
       showMacroPanel();
     }
     if (phase === 'rhythm') {
@@ -163,62 +170,202 @@
   // ── Bass 宏观控制 ─────────────────────────────────
 
   function applyPresetDefaults(personality) {
-    var preset = D.BASS_PRESETS[personality];
-    if (!preset) return;
-    STATE.bassMacros.body = preset.body;
-    STATE.bassMacros.growl = preset.growl;
-    STATE.bassMacros.wobble = preset.wobble;
-    STATE.bassMacros.space = preset.space;
+    var synthPreset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[personality];
+    if (!synthPreset) return;
+    STATE.synthParams = Object.assign({}, synthPreset);
+    syncLegacyMacrosFromSynth();
     updateMacroUI();
   }
 
   function showMacroPanel() {
     var panel = document.getElementById('macroPanel');
     if (panel) panel.style.display = 'block';
+    renderWaveformOptions();
     updateMacroUI();
   }
 
   function updateMacroUI() {
-    var macros = ['body', 'growl', 'wobble', 'space'];
-    macros.forEach(function (m) {
-      var input = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1));
-      var val = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1) + 'Val');
-      if (input) input.value = STATE.bassMacros[m];
-      if (val) val.textContent = STATE.bassMacros[m];
+    var knobs = document.querySelectorAll('.synth-knob[data-synth-param]');
+    knobs.forEach(function (knob) {
+      var param = knob.dataset.synthParam;
+      setKnobVisual(knob, STATE.synthParams[param]);
     });
+    var filter = document.getElementById('filterType');
+    if (filter) filter.value = STATE.synthParams.filterType;
+    updateWaveformSelection();
+    drawSynthWaveform();
     checkMacroAdjusted();
   }
 
   function checkMacroAdjusted() {
-    var preset = D.BASS_PRESETS[STATE.choices.bassPersonality];
+    var preset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[STATE.choices.bassPersonality];
     var hint = document.getElementById('macroHint');
     if (!preset || !hint) return;
-    var adjusted = false;
-    var macros = ['body', 'growl', 'wobble', 'space'];
-    for (var i = 0; i < macros.length; i++) {
-      if (STATE.bassMacros[macros[i]] !== preset[macros[i]]) {
-        adjusted = true;
-        break;
-      }
-    }
+    var params = ['waveform', 'filterType', 'sub', 'fm', 'cutoff', 'resonance', 'drive', 'rate', 'depth', 'space'];
+    var adjusted = params.some(function (param) {
+      return STATE.synthParams[param] !== preset[param];
+    });
     hint.classList.toggle('adjusted', adjusted);
-    hint.textContent = adjusted ? '✓ 已调整宏观控制' : '从预设默认值开始，至少调节一个旋钮';
+    hint.textContent = adjusted ? '✓ 这个 Bass 已经带上你的参数' : '至少改变一个真实参数，塑造属于你的 Bass';
   }
 
   function setupMacroListeners() {
-    var macros = ['body', 'growl', 'wobble', 'space'];
-    macros.forEach(function (m) {
-      var input = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1));
-      if (!input) return;
-      input.addEventListener('input', function () {
-        STATE.bassMacros[m] = parseInt(input.value, 10);
-        var val = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1) + 'Val');
-        if (val) val.textContent = input.value;
-        checkMacroAdjusted();
-        recomputeDerivedState();
-        updateNextButton();
+    document.querySelectorAll('.synth-knob[data-synth-param]').forEach(setupKnobInteraction);
+
+    var filter = document.getElementById('filterType');
+    if (filter) {
+      filter.addEventListener('change', function () {
+        STATE.synthParams.filterType = filter.value;
+        synthParamChanged();
       });
+    }
+  }
+
+  function setupKnobInteraction(knob) {
+    var startY = 0;
+    var startNormalized = 0;
+
+    knob.addEventListener('pointerdown', function (event) {
+      startY = event.clientY;
+      startNormalized = valueToNormalized(knob, STATE.synthParams[knob.dataset.synthParam]);
+      knob.setPointerCapture(event.pointerId);
+      event.preventDefault();
     });
+    knob.addEventListener('pointermove', function (event) {
+      if (!knob.hasPointerCapture(event.pointerId)) return;
+      var normalized = Math.max(0, Math.min(1, startNormalized + (startY - event.clientY) / 150));
+      setSynthParam(knob.dataset.synthParam, normalizedToValue(knob, normalized));
+    });
+    knob.addEventListener('wheel', function (event) {
+      event.preventDefault();
+      var normalized = valueToNormalized(knob, STATE.synthParams[knob.dataset.synthParam]);
+      normalized += event.deltaY < 0 ? 0.025 : -0.025;
+      setSynthParam(knob.dataset.synthParam, normalizedToValue(knob, Math.max(0, Math.min(1, normalized))));
+    }, { passive: false });
+    knob.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowRight' && event.key !== 'ArrowDown' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      var direction = (event.key === 'ArrowUp' || event.key === 'ArrowRight') ? 1 : -1;
+      var step = parseFloat(knob.dataset.step) || 1;
+      setSynthParam(knob.dataset.synthParam, STATE.synthParams[knob.dataset.synthParam] + direction * step);
+    });
+    knob.addEventListener('dblclick', function () {
+      var preset = D.SYNTH_PRESETS[STATE.choices.bassPersonality];
+      if (preset) setSynthParam(knob.dataset.synthParam, preset[knob.dataset.synthParam]);
+    });
+  }
+
+  function valueToNormalized(knob, value) {
+    var min = parseFloat(knob.dataset.min);
+    var max = parseFloat(knob.dataset.max);
+    if (knob.dataset.curve === 'log') return Math.log(value / min) / Math.log(max / min);
+    return (value - min) / (max - min);
+  }
+
+  function normalizedToValue(knob, normalized) {
+    var min = parseFloat(knob.dataset.min);
+    var max = parseFloat(knob.dataset.max);
+    var step = parseFloat(knob.dataset.step) || 1;
+    var value = knob.dataset.curve === 'log' ? min * Math.pow(max / min, normalized) : min + (max - min) * normalized;
+    return Math.round(value / step) * step;
+  }
+
+  function setSynthParam(param, value) {
+    var knob = document.querySelector('.synth-knob[data-synth-param="' + param + '"]');
+    if (knob) {
+      var min = parseFloat(knob.dataset.min);
+      var max = parseFloat(knob.dataset.max);
+      value = Math.max(min, Math.min(max, value));
+    }
+    STATE.synthParams[param] = value;
+    syncLegacyMacrosFromSynth();
+    updateMacroUI();
+    synthParamChanged();
+  }
+
+  function synthParamChanged() {
+    syncLegacyMacrosFromSynth();
+    checkMacroAdjusted();
+    recomputeDerivedState();
+    updateNextButton();
+  }
+
+  function syncLegacyMacrosFromSynth() {
+    var s = STATE.synthParams;
+    STATE.bassMacros.body = Math.round(s.sub);
+    STATE.bassMacros.growl = Math.round(Math.min(100, s.fm * 0.35 + s.drive * 0.45 + (s.resonance / 20) * 20));
+    STATE.bassMacros.wobble = Math.round(Math.min(100, s.depth * 0.78 + (s.rate / 4) * 22));
+    STATE.bassMacros.space = Math.round(s.space);
+  }
+
+  function setKnobVisual(knob, value) {
+    var normalized = Math.max(0, Math.min(1, valueToNormalized(knob, value)));
+    var angle = -135 + normalized * 270;
+    knob.style.setProperty('--knob-angle', angle + 'deg');
+    knob.style.setProperty('--knob-fill', (normalized * 270) + 'deg');
+    knob.setAttribute('aria-valuemin', knob.dataset.min);
+    knob.setAttribute('aria-valuemax', knob.dataset.max);
+    knob.setAttribute('aria-valuenow', value);
+    var valueNode = document.getElementById(knob.id + 'Val');
+    if (valueNode) valueNode.textContent = formatSynthValue(knob.dataset.synthParam, value);
+  }
+
+  function formatSynthValue(param, value) {
+    if (param === 'cutoff') return value >= 1000 ? (value / 1000).toFixed(value >= 3000 ? 1 : 2) + ' kHz' : Math.round(value) + ' Hz';
+    if (param === 'resonance') return Number(value).toFixed(1) + ' Q';
+    if (param === 'rate') return ['1/2', '1/4', '1/8', '1/8T', '1/16'][Math.round(value)] || '1/8';
+    return Math.round(value) + '%';
+  }
+
+  function renderWaveformOptions() {
+    var container = document.getElementById('waveformOptions');
+    var bank = window.DropDestinyWavetables;
+    if (!container || !bank || container.children.length) return;
+    Object.keys(bank.tables).forEach(function (id) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'waveform-btn';
+      button.dataset.waveform = id;
+      button.textContent = bank.metadata[id].label;
+      button.addEventListener('click', function () {
+        STATE.synthParams.waveform = id;
+        updateWaveformSelection();
+        drawSynthWaveform();
+        synthParamChanged();
+      });
+      container.appendChild(button);
+    });
+  }
+
+  function updateWaveformSelection() {
+    document.querySelectorAll('.waveform-btn').forEach(function (button) {
+      button.classList.toggle('active', button.dataset.waveform === STATE.synthParams.waveform);
+    });
+  }
+
+  function drawSynthWaveform() {
+    var canvas = document.getElementById('synthWaveCanvas');
+    var bank = window.DropDestinyWavetables;
+    if (!canvas || !bank || !bank.tables[STATE.synthParams.waveform]) return;
+    var context = canvas.getContext('2d');
+    var samples = bank.tables[STATE.synthParams.waveform];
+    var width = canvas.width;
+    var height = canvas.height;
+    context.clearRect(0, 0, width, height);
+    context.strokeStyle = 'rgba(0,255,204,0.16)';
+    context.beginPath(); context.moveTo(0, height / 2); context.lineTo(width, height / 2); context.stroke();
+    context.strokeStyle = '#00ffcc';
+    context.lineWidth = 2;
+    context.shadowColor = '#00ffcc';
+    context.shadowBlur = 8;
+    context.beginPath();
+    for (var i = 0; i < samples.length; i++) {
+      var x = i / (samples.length - 1) * width;
+      var y = height / 2 - samples[i] * height * 0.4;
+      if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+    }
+    context.stroke();
+    context.shadowBlur = 0;
   }
 
   // ── 密度选择 ──────────────────────────────────────
@@ -715,12 +862,10 @@
   }
 
   function hasMacroAdjusted() {
-    var preset = D.BASS_PRESETS[STATE.choices.bassPersonality];
+    var preset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[STATE.choices.bassPersonality];
     if (!preset) return false;
-    return STATE.bassMacros.body !== preset.body ||
-           STATE.bassMacros.growl !== preset.growl ||
-           STATE.bassMacros.wobble !== preset.wobble ||
-           STATE.bassMacros.space !== preset.space;
+    return ['waveform', 'filterType', 'sub', 'fm', 'cutoff', 'resonance', 'drive', 'rate', 'depth', 'space']
+      .some(function (param) { return STATE.synthParams[param] !== preset[param]; });
   }
 
   // ── 派生状态重算 ──────────────────────────────────

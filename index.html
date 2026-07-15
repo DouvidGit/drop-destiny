@@ -71,33 +71,38 @@
       <!-- Phase 2: Bass Forge -->
       <section id="bassForge" class="phase-section">
         <h2 class="phase-title">Bass Forge</h2>
-        <p class="phase-desc">选择 Bass 核心性格，然后调节宏观旋钮</p>
+        <p class="phase-desc">选择核心性格，然后进入你的简化 Bass 合成器</p>
         <div class="option-grid" id="bassPersonalityOptions"></div>
         <div class="macro-panel" id="macroPanel" style="display:none">
-          <h3 class="macro-title">宏观控制</h3>
-          <div class="macro-grid">
-            <div class="macro-control" data-macro="body">
-              <label>Body <small>Sub 厚度</small></label>
-              <input type="range" min="0" max="100" value="50" id="macroBody" data-macro-input="body">
-              <span class="macro-value" id="macroBodyVal">50</span>
+          <div class="synth-header">
+            <div>
+              <h3 class="macro-title">BASS SYNTH</h3>
+              <p class="synth-subtitle">拖动旋钮上下调节 · 双击恢复预设</p>
             </div>
-            <div class="macro-control" data-macro="growl">
-              <label>Growl <small>中频咆哮</small></label>
-              <input type="range" min="0" max="100" value="50" id="macroGrowl" data-macro-input="growl">
-              <span class="macro-value" id="macroGrowlVal">50</span>
-            </div>
-            <div class="macro-control" data-macro="wobble">
-              <label>Wobble <small>调制运动</small></label>
-              <input type="range" min="0" max="100" value="50" id="macroWobble" data-macro-input="wobble">
-              <span class="macro-value" id="macroWobbleVal">50</span>
-            </div>
-            <div class="macro-control" data-macro="space">
-              <label>Space <small>宽度混响</small></label>
-              <input type="range" min="0" max="100" value="50" id="macroSpace" data-macro-input="space">
-              <span class="macro-value" id="macroSpaceVal">50</span>
+            <div class="filter-selector">
+              <label for="filterType">FILTER</label>
+              <select id="filterType">
+                <option value="lowpass">LOW PASS</option>
+                <option value="bandpass">BAND PASS</option>
+                <option value="notch">NOTCH</option>
+              </select>
             </div>
           </div>
-          <p class="macro-hint" id="macroHint">从预设默认值开始，至少调节一个旋钮</p>
+          <div class="wavetable-rack">
+            <canvas id="synthWaveCanvas" class="synth-wave-canvas" width="480" height="96"></canvas>
+            <div class="waveform-options" id="waveformOptions"></div>
+          </div>
+          <div class="macro-grid synth-knob-grid">
+            <div class="macro-control"><label>SUB <small>低频重量</small></label><button class="synth-knob" id="synthSub" data-synth-param="sub" data-min="0" data-max="100" data-step="1" role="slider" aria-label="Sub level"><span class="knob-indicator"></span></button><span class="macro-value" id="synthSubVal">50%</span></div>
+            <div class="macro-control"><label>FM <small>金属调制</small></label><button class="synth-knob" id="synthFm" data-synth-param="fm" data-min="0" data-max="100" data-step="1" role="slider" aria-label="FM amount"><span class="knob-indicator"></span></button><span class="macro-value" id="synthFmVal">50%</span></div>
+            <div class="macro-control"><label>CUTOFF <small>滤波频率</small></label><button class="synth-knob" id="synthCutoff" data-synth-param="cutoff" data-min="80" data-max="8000" data-step="10" data-curve="log" role="slider" aria-label="Filter cutoff"><span class="knob-indicator"></span></button><span class="macro-value" id="synthCutoffVal">1200 Hz</span></div>
+            <div class="macro-control"><label>RESO <small>滤波共振</small></label><button class="synth-knob" id="synthResonance" data-synth-param="resonance" data-min="0.5" data-max="20" data-step="0.5" role="slider" aria-label="Filter resonance"><span class="knob-indicator"></span></button><span class="macro-value" id="synthResonanceVal">8.0 Q</span></div>
+            <div class="macro-control"><label>DRIVE <small>饱和失真</small></label><button class="synth-knob" id="synthDrive" data-synth-param="drive" data-min="0" data-max="100" data-step="1" role="slider" aria-label="Drive"><span class="knob-indicator"></span></button><span class="macro-value" id="synthDriveVal">50%</span></div>
+            <div class="macro-control"><label>RATE <small>同步速度</small></label><button class="synth-knob" id="synthRate" data-synth-param="rate" data-min="0" data-max="4" data-step="1" role="slider" aria-label="Wobble rate"><span class="knob-indicator"></span></button><span class="macro-value" id="synthRateVal">1/4</span></div>
+            <div class="macro-control"><label>DEPTH <small>Wobble 深度</small></label><button class="synth-knob" id="synthDepth" data-synth-param="depth" data-min="0" data-max="100" data-step="1" role="slider" aria-label="Wobble depth"><span class="knob-indicator"></span></button><span class="macro-value" id="synthDepthVal">50%</span></div>
+            <div class="macro-control"><label>SPACE <small>立体声空间</small></label><button class="synth-knob" id="synthSpace" data-synth-param="space" data-min="0" data-max="100" data-step="1" role="slider" aria-label="Space"><span class="knob-indicator"></span></button><span class="macro-value" id="synthSpaceVal">50%</span></div>
+          </div>
+          <p class="macro-hint" id="macroHint">至少改变一个真实参数，塑造属于你的 Bass</p>
         </div>
         <div class="nav-buttons">
           <button class="btn-back" data-back>← 上一步</button>
@@ -188,6 +193,8 @@
   <!-- Scripts (classic, no ES modules) -->
   <script src="data.js"></script>
   <script src="style-engine.js"></script>
+  <script src="wavetables.js"></script>
+  <script src="audio-assets.js"></script>
   <script src="audio-engine.js"></script>
   <script src="visualizer.js"></script>
   <script src="app.js"></script>

@@ -31,6 +31,7 @@
   // ── AudioContext 与主节点 ──────────────────────────
   var ctx = null;
   var sumGain = null;
+  var musicBusGain = null;
   var compressor = null;
   var analyser = null;
   var masterGain = null;
@@ -38,6 +39,9 @@
 
   // ── 持久 Bass 节点 ─────────────────────────────────
   var bassOsc = null;
+  var bassOsc2 = null;
+  var fmOsc = null;
+  var fmGain = null;
   var subOsc = null;
   var bassFilter = null;
   var bassShaper = null;
@@ -82,8 +86,15 @@
   var currentBassFreq = 55;
   var currentPadFreqs = [110, 165];
   var currentBassType = 'sawtooth';
+  var currentWaveformId = 'distorted';
+  var currentSynthParams = null;
   var currentGrowlVal = 0.5;   // 0-1, 用于 playBassOneShot 复用
   var currentBodyVal = 0.5;    // 0-1, 用于 Pattern one-shot 音量
+  var periodicWaveCache = {};
+  var sampleBank = {};
+  var sampleLoadPromise = null;
+  var currentKickSample = 'kickClean';
+  var currentSnareSample = 'snareBeefy';
 
   // ── 最终歌曲播放状态 ───────────────────────────────
   var isFinalSongPlaying = false;
@@ -156,6 +167,34 @@
     ]
   };
 
+  // 每种结局使用真正不同的 2-bar Bass 语句（16 分音符网格）
+  var GENRE_BASS_PHRASES = {
+    riddimDubstep: {
+      a: [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0],
+      b: [1,0,0,1, 0,0,1,0, 0,0,1,0, 0,1,0,0, 1,0,0,0, 0,1,0,0, 1,0,0,1, 0,0,1,0]
+    },
+    brostep: {
+      a: [1,0,1,0, 0,1,0,0, 1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,1, 0,0,1,0, 1,0,0,1],
+      b: [1,1,0,1, 0,0,1,1, 0,1,0,0, 1,0,1,0, 1,0,1,0, 1,0,0,1, 0,1,1,0, 1,0,0,1]
+    },
+    hybridTrap: {
+      a: [1,0,0,0, 0,1,0,1, 0,0,1,0, 0,0,0,1, 1,0,0,0, 0,0,1,0, 0,1,0,0, 1,0,0,0],
+      b: [1,0,0,1, 0,0,0,0, 1,0,1,0, 0,1,0,0, 1,0,0,0, 1,0,0,1, 0,0,1,0, 0,0,1,0]
+    },
+    bassHouse: {
+      a: [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+      b: [0,0,1,0, 0,1,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0, 0,0,1,0, 0,1,0,0, 0,0,1,0]
+    },
+    melodicDubstep: {
+      a: [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0, 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+      b: [1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0, 1,0,0,0, 0,0,1,0, 0,1,0,0, 1,0,0,0]
+    },
+    destinyFusion: {
+      a: [1,0,0,1, 0,1,0,0, 1,0,0,0, 0,1,0,1, 1,0,0,0, 1,0,1,0, 0,0,1,0, 1,0,0,1],
+      b: [1,1,0,0, 0,0,1,0, 0,1,0,1, 0,0,1,0, 1,0,1,0, 0,1,0,0, 1,0,0,1, 0,1,0,0]
+    }
+  };
+
   // Sound World → 频率映射
   var SW_FREQS = {
     abyss:         { bass: 55,   pad: [110, 165]    },
@@ -185,8 +224,65 @@
 
   // 安全读取宏观参数：null/undefined → 50，但 0 保留为 0
   function macroVal(state, key) {
-    if (!state.bassMacros || state.bassMacros[key] == null) return 50;
+    if (!state || !state.bassMacros || state.bassMacros[key] == null) return 50;
     return state.bassMacros[key];
+  }
+
+  function getSynthParams(state) {
+    if (state && state.synthParams) return state.synthParams;
+    return {
+      waveform: 'distorted', filterType: 'lowpass',
+      sub: macroVal(state, 'body'), fm: macroVal(state, 'growl'),
+      cutoff: 1800, resonance: 6, drive: macroVal(state, 'growl'),
+      rate: 2, depth: macroVal(state, 'wobble'), space: macroVal(state, 'space')
+    };
+  }
+
+  function decodeBase64(base64) {
+    var binary = global.atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  function loadSampleBank() {
+    if (!ctx || sampleLoadPromise || !global.DropDestinyAudioAssets) return sampleLoadPromise;
+    var assets = global.DropDestinyAudioAssets;
+    sampleLoadPromise = Promise.all(Object.keys(assets).map(function (id) {
+      return ctx.decodeAudioData(decodeBase64(assets[id].base64).slice(0)).then(function (buffer) {
+        sampleBank[id] = buffer;
+      }).catch(function () {});
+    }));
+    return sampleLoadPromise;
+  }
+
+  function createPeriodicWaveFromSamples(id) {
+    if (!ctx || !global.DropDestinyWavetables || !global.DropDestinyWavetables.tables[id]) return null;
+    if (periodicWaveCache[id]) return periodicWaveCache[id];
+    var samples = global.DropDestinyWavetables.tables[id];
+    var harmonics = Math.min(96, Math.floor(samples.length / 2));
+    var real = new Float32Array(harmonics + 1);
+    var imag = new Float32Array(harmonics + 1);
+    for (var harmonic = 1; harmonic <= harmonics; harmonic++) {
+      var re = 0, im = 0;
+      for (var i = 0; i < samples.length; i++) {
+        var phase = 2 * Math.PI * harmonic * i / samples.length;
+        re += samples[i] * Math.cos(phase);
+        im -= samples[i] * Math.sin(phase);
+      }
+      real[harmonic] = re / samples.length;
+      imag[harmonic] = im / samples.length;
+    }
+    periodicWaveCache[id] = ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    return periodicWaveCache[id];
+  }
+
+  function applyWavetable(id) {
+    var wave = createPeriodicWaveFromSamples(id);
+    if (!wave) return;
+    currentWaveformId = id;
+    if (bassOsc) bassOsc.setPeriodicWave(wave);
+    if (bassOsc2) bassOsc2.setPeriodicWave(wave);
   }
 
   function makeDistortionCurve(amount) {
@@ -233,6 +329,10 @@
     sumGain = ctx.createGain();
     sumGain.gain.value = 1.0;
 
+    musicBusGain = ctx.createGain();
+    musicBusGain.gain.value = 1.0;
+    musicBusGain.connect(sumGain);
+
     compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -10;
     compressor.knee.value = 20;
@@ -257,6 +357,21 @@
     bassOsc.type = 'sawtooth';
     bassOsc.frequency.value = 55;
 
+    bassOsc2 = ctx.createOscillator();
+    bassOsc2.type = 'sawtooth';
+    bassOsc2.frequency.value = 55;
+    bassOsc2.detune.value = -7;
+
+    fmOsc = ctx.createOscillator();
+    fmOsc.type = 'sine';
+    fmOsc.frequency.value = 110;
+
+    fmGain = ctx.createGain();
+    fmGain.gain.value = 0;
+    fmOsc.connect(fmGain);
+    fmGain.connect(bassOsc.frequency);
+    fmGain.connect(bassOsc2.frequency);
+
     bassFilter = ctx.createBiquadFilter();
     bassFilter.type = 'lowpass';
     bassFilter.frequency.value = 1200;
@@ -273,10 +388,11 @@
     bassOutGain.gain.value = 0.15;
 
     bassOsc.connect(bassFilter);
+    bassOsc2.connect(bassFilter);
     bassFilter.connect(bassShaper);
     bassShaper.connect(bassGate);
     bassGate.connect(bassOutGain);
-    bassOutGain.connect(sumGain);
+    bassOutGain.connect(musicBusGain);
 
     // ── Sub 链 ──
     subOsc = ctx.createOscillator();
@@ -291,7 +407,7 @@
 
     subOsc.connect(subGate);
     subGate.connect(subGain);
-    subGain.connect(sumGain);
+    subGain.connect(musicBusGain);
 
     // ── LFO (Wobble) ──
     lfo = ctx.createOscillator();
@@ -318,7 +434,7 @@
 
     padOsc1.connect(padGain);
     padOsc2.connect(padGain);
-    padGain.connect(sumGain);
+    padGain.connect(musicBusGain);
 
     // ── Delay / Feedback (Space) ──
     delaySend = ctx.createGain();
@@ -334,33 +450,38 @@
     delayWet.gain.value = 0.6;
 
     padGain.connect(delaySend);
+    bassOutGain.connect(delaySend);
     delaySend.connect(delayNode);
     delayNode.connect(feedbackGain);
     feedbackGain.connect(delayNode); // 反馈回路
     delayNode.connect(delayWet);
-    delayWet.connect(sumGain);
+    delayWet.connect(musicBusGain);
 
     // 启动持久振荡器
     bassOsc.start();
+    bassOsc2.start();
+    fmOsc.start();
     subOsc.start();
     lfo.start();
     padOsc1.start();
     padOsc2.start();
+    applyWavetable(currentWaveformId);
+    loadSampleBank();
   }
 
   // ── 销毁持久音频图 ─────────────────────────────────
 
   function destroyGraph() {
     var persistentNodes = [
-      bassOsc, subOsc, lfo, padOsc1, padOsc2
+      bassOsc, bassOsc2, fmOsc, subOsc, lfo, padOsc1, padOsc2
     ];
     var allNodes = [
-      bassOsc, bassFilter, bassShaper, bassGate, bassOutGain,
+      bassOsc, bassOsc2, fmOsc, fmGain, bassFilter, bassShaper, bassGate, bassOutGain,
       subOsc, subGate, subGain,
       lfo, lfoDepth,
       padOsc1, padOsc2, padGain,
       delaySend, delayNode, feedbackGain, delayWet,
-      sumGain, compressor, analyser, masterGain
+      musicBusGain, sumGain, compressor, analyser, masterGain
     ];
 
     for (var i = 0; i < persistentNodes.length; i++) {
@@ -372,20 +493,53 @@
       if (m) { try { m.disconnect(); } catch (e) {} }
     }
 
-    bassOsc = null; bassFilter = null; bassShaper = null;
+    bassOsc = null; bassOsc2 = null; fmOsc = null; fmGain = null;
+    bassFilter = null; bassShaper = null;
     bassGate = null; bassOutGain = null;
     subOsc = null; subGate = null; subGain = null;
     lfo = null; lfoDepth = null;
     padOsc1 = null; padOsc2 = null; padGain = null;
     delaySend = null; delayNode = null; feedbackGain = null; delayWet = null;
-    sumGain = null; compressor = null; analyser = null; masterGain = null;
+    musicBusGain = null; sumGain = null; compressor = null; analyser = null; masterGain = null;
+    periodicWaveCache = {};
+    sampleBank = {};
+    sampleLoadPromise = null;
   }
 
-  // ── 鼓组合成 ───────────────────────────────────────
+  // ── 鼓组采样 + 合成回退 ────────────────────────────
+
+  function playSample(id, time, gainValue, playbackRate, offset, duration) {
+    if (!ctx || !sumGain || !sampleBank[id]) return null;
+    var source = ctx.createBufferSource();
+    var gain = ctx.createGain();
+    source.buffer = sampleBank[id];
+    source.playbackRate.value = playbackRate || 1;
+    gain.gain.value = gainValue == null ? 0.7 : gainValue;
+    source.connect(gain);
+    gain.connect(sumGain);
+    if (duration != null) source.start(time, offset || 0, duration);
+    else source.start(time, offset || 0);
+    if (currentTracking) currentTracking.push(source, gain);
+    return source;
+  }
+
+  function sidechainAt(time, amount) {
+    if (!musicBusGain) return;
+    var floor = Math.max(0.32, 1 - (amount || 0.5));
+    if (time <= ctx.currentTime + 0.2) musicBusGain.gain.cancelScheduledValues(time);
+    musicBusGain.gain.setValueAtTime(1, time);
+    musicBusGain.gain.linearRampToValueAtTime(floor, time + 0.008);
+    musicBusGain.gain.exponentialRampToValueAtTime(1, time + 0.17);
+  }
 
   function playKick(time) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
+    if (sampleBank[currentKickSample]) {
+      playSample(currentKickSample, t, currentKickSample === 'kickTearout' ? 0.78 : 0.72);
+      sidechainAt(t, currentKickSample === 'kickTearout' ? 0.62 : 0.52);
+      return;
+    }
     var osc = ctx.createOscillator();
     var g = ctx.createGain();
     osc.frequency.setValueAtTime(150, t);
@@ -397,11 +551,16 @@
     osc.start(t);
     osc.stop(t + 0.35);
     if (currentTracking) { currentTracking.push(osc, g); }
+    sidechainAt(t, 0.5);
   }
 
   function playSnare(time) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
+    if (sampleBank[currentSnareSample]) {
+      playSample(currentSnareSample, t, currentSnareSample === 'snareWide' ? 0.56 : 0.62);
+      return;
+    }
     var dur = 0.15;
     var bufSize = Math.floor(ctx.sampleRate * dur);
     var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
@@ -426,6 +585,10 @@
   function playHihat(time, gainVal) {
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
+    if (sampleBank.hatClosed) {
+      playSample('hatClosed', t, gainVal == null ? 0.48 : Math.max(0.18, gainVal * 7.2), 0.96 + Math.random() * 0.08);
+      return;
+    }
     var dur = 0.05;
     var bufSize = Math.floor(ctx.sampleRate * dur);
     var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
@@ -447,6 +610,23 @@
     if (currentTracking) { currentTracking.push(src, g, filter); }
   }
 
+  function playClap(time, gainValue) {
+    if (sampleBank.clapFat) playSample('clapFat', time, gainValue == null ? 0.34 : gainValue, 1);
+    else playSnare(time);
+  }
+
+  function playImpact(time, gainValue) {
+    if (sampleBank.impactDeep) playSample('impactDeep', time, gainValue == null ? 0.92 : gainValue, 1);
+  }
+
+  function playRiser(startTime, targetDuration) {
+    var buffer = sampleBank.riser140;
+    if (!buffer) return;
+    var sourceSegment = Math.min(6.86, buffer.duration);
+    var rate = sourceSegment / Math.max(0.25, targetDuration);
+    playSample('riser140', startTime, 0.28, rate, Math.max(0, buffer.duration - sourceSegment), sourceSegment);
+  }
+
   // ── Bass 音符触发 ──────────────────────────────────
 
   function triggerBassNote(time, duration) {
@@ -454,6 +634,13 @@
     var d = Math.max(0.03, duration);
     scheduleGateEnvelope(bassGate.gain, time, d, 0.9);
     if (subGate) scheduleGateEnvelope(subGate.gain, time, d, 0.82);
+  }
+
+  function scheduleBassPitch(freq, time) {
+    if (bassOsc) smoothSet(bassOsc.frequency, freq, 0.004, time);
+    if (bassOsc2) smoothSet(bassOsc2.frequency, freq, 0.004, time);
+    if (subOsc) smoothSet(subOsc.frequency, freq / 2, 0.004, time);
+    if (fmOsc) smoothSet(fmOsc.frequency, freq * 2, 0.004, time);
   }
 
   function scheduleGateEnvelope(param, time, duration, peak) {
@@ -569,6 +756,9 @@
 
     // Bass Pattern
     var personality = state.choices.bassPersonality;
+    currentKickSample = (personality === 'brutal' || personality === 'mechanical') ? 'kickTearout' : 'kickClean';
+    currentSnareSample = (personality === 'brutal' || personality === 'mechanical') ? 'snareWide' : 'snareBeefy';
+    if (rId === 'fourOnFloor') currentKickSample = 'kickClean';
     if (personality === 'melodic') {
       currentBassPat = BASS_PATTERNS.melodic;
     } else {
@@ -623,60 +813,51 @@
   function updateBassParams(state) {
     if (!bassOsc || !ctx) return;
 
-    var macros = state.bassMacros || { body: 50, growl: 50, wobble: 50, space: 50 };
-    var body = macros.body / 100;
-    var growl = macros.growl / 100;
-    var wobble = macros.wobble / 100;
+    var synth = getSynthParams(state);
+    currentSynthParams = Object.assign({}, synth);
+    var sub = synth.sub / 100;
+    var fm = synth.fm / 100;
+    var drive = synth.drive / 100;
+    var depth = synth.depth / 100;
 
     // 振荡器频率
     var sw = state.choices.soundWorld;
     var freqs = SW_FREQS[sw] || SW_FREQS.abyss;
+    currentPadFreqs = freqs.pad.slice();
     if (freqs.bass !== currentBassFreq) {
       currentBassFreq = freqs.bass;
       smoothSet(bassOsc.frequency, currentBassFreq, 0.01);
+      smoothSet(bassOsc2.frequency, currentBassFreq, 0.01);
       smoothSet(subOsc.frequency, currentBassFreq / 2, 0.01);
+      smoothSet(fmOsc.frequency, currentBassFreq * 2, 0.01);
     }
 
-    // 振荡器类型
-    var personality = state.choices.bassPersonality;
-    var oscType = PERSONALITY_OSC[personality] || 'sawtooth';
-    if (oscType !== currentBassType) {
-      currentBassType = oscType;
-      bassOsc.type = oscType;
-    }
+    if (synth.waveform !== currentWaveformId) applyWavetable(synth.waveform);
 
-    // Body → Sub 音量/厚度
-    currentBodyVal = body;
-    smoothSet(subGain.gain, 0.02 + body * 0.35, 0.02);
-    smoothSet(bassOutGain.gain, 0.05 + body * 0.20, 0.02);
+    // Sub 与中频层独立控制
+    currentBodyVal = sub;
+    smoothSet(subGain.gain, 0.015 + sub * 0.31, 0.02);
+    smoothSet(bassOutGain.gain, 0.105 + drive * 0.07, 0.02);
 
-    // Growl → 失真 + 滤波器共振 + 截止频率
-    currentGrowlVal = growl;  // 保存供 playBassOneShot 复用
-    bassShaper.curve = makeDistortionCurve(growl);
-    smoothSet(bassFilter.Q, 1 + growl * 14, 0.02);
+    // Wavetable FM + Filter + Drive
+    currentGrowlVal = Math.min(1, fm * 0.45 + drive * 0.55);
+    smoothSet(fmGain.gain, Math.pow(fm, 1.35) * currentBassFreq * 16, 0.025);
+    bassFilter.type = synth.filterType || 'lowpass';
+    smoothSet(bassFilter.frequency, synth.cutoff, 0.025);
+    smoothSet(bassFilter.Q, synth.resonance, 0.025);
+    bassShaper.curve = makeDistortionCurve(drive * 1.25);
 
-    // Wobble → LFO rate/depth
+    // BPM 同步 Wobble
     updateLfoRate(state);
-    smoothSet(lfoDepth.gain, Math.pow(wobble, 1.5) * 2500, 0.02);
-
-    // Growl 影响 baseline 截止频率（growl 高 = 更暗）
-    var baselineFreq = 2000 - growl * 1600;
-    // 注意：LFO 在 baseline 上叠加调制，所以只设 baseline
-    // 用 setValueAtTime 避免与 LFO 冲突——LFO 通过 lfoDepth 控制幅度
-    // baseline 设为滤波器的 value（LFO 在此之上叠加）
-    // 但 setTargetAtTime 会和 LFO 抢占 frequency param
-    // 解决：用一个固定 gain 偏置 + LFO depth
-    // 实际上 Web Audio 中 LFO 连接到 frequency 会叠加在 value 之上
-    // 所以 setTargetAtTime 设置 baseline，LFO 在此之上调制
-    smoothSet(bassFilter.frequency, baselineFreq, 0.02);
+    smoothSet(lfoDepth.gain, Math.pow(depth, 1.35) * Math.min(3600, synth.cutoff * 0.88), 0.02);
   }
 
   function updateLfoRate(state) {
     if (!lfo || !ctx) return;
-    var wobble = macroVal(state, 'wobble') / 100;
+    var synth = getSynthParams(state);
     var beatRate = currentBpm / 60;
-    // wobble=0: 0.5 Hz (几乎不动), wobble=1: 4×beatRate (快)
-    var lfoRate = beatRate * (0.5 + wobble * 3.5);
+    var multipliers = [0.5, 1, 2, 3, 4];
+    var lfoRate = beatRate * multipliers[Math.max(0, Math.min(4, Math.round(synth.rate)))];
     smoothSet(lfo.frequency, lfoRate, 0.03);
   }
 
@@ -694,7 +875,7 @@
     }
 
     // Space 影响 pad 音量
-    var space = macroVal(state, 'space') / 100;
+    var space = getSynthParams(state).space / 100;
     padTargetGain = 0.02 + space * 0.06;
     if (!isPaused) {
       smoothSet(padGain.gain, padTargetGain, 0.05);
@@ -706,11 +887,11 @@
   function updateEffects(state) {
     if (!delaySend || !ctx) return;
 
-    var space = macroVal(state, 'space') / 100;
+    var space = getSynthParams(state).space / 100;
 
     // Space → Delay send + feedback
-    smoothSet(delaySend.gain, space * 0.4, 0.03);
-    smoothSet(feedbackGain.gain, 0.15 + space * 0.35, 0.03);
+    smoothSet(delaySend.gain, space * 0.32, 0.03);
+    smoothSet(feedbackGain.gain, 0.12 + space * 0.32, 0.03);
 
     // Delay time 同步到 BPM
     var beatDur = 60 / currentBpm;
@@ -763,7 +944,8 @@
         bassPersonality: { brutal: 82, wobbly: 110, melodic: 165, mechanical: 138 }
       };
       var f = (freqMap[phase] && freqMap[phase][optionId]) || 220;
-      playOneShot(f, 0.3, phase === 'bassPersonality' ? 'sawtooth' : 'sine', 0.15);
+      if (phase === 'bassPersonality' && bassShaper) playBassOneShot(f, 0.42, 0.16);
+      else playOneShot(f, 0.3, 'sine', 0.15);
     }
   }
 
@@ -775,13 +957,26 @@
     osc.type = type || 'sine';
     osc.frequency.value = freq;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(gainVal || 0.15, t + 0.01);
+    g.gain.linearRampToValueAtTime(gainVal == null ? 0.15 : gainVal, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.001, t + duration);
     osc.connect(g);
-    g.connect(sumGain);
+    g.connect(musicBusGain || sumGain);
     osc.start(t);
     osc.stop(t + duration + 0.05);
     if (currentTracking) { currentTracking.push(osc, g); }
+  }
+
+  function playChord(root, time, duration, gainValue, quality) {
+    var intervals = quality === 'major' ? [1, Math.pow(2, 4 / 12), Math.pow(2, 7 / 12)] :
+      [1, Math.pow(2, 3 / 12), Math.pow(2, 7 / 12)];
+    for (var i = 0; i < intervals.length; i++) {
+      playOneShot(root * intervals[i], duration, i === 0 ? 'triangle' : 'sawtooth', (gainValue || 0.04) / (i === 0 ? 1 : 1.5), time);
+    }
+  }
+
+  function playLeadNote(freq, time, duration, gainValue) {
+    playOneShot(freq, duration, 'triangle', gainValue || 0.045, time);
+    playOneShot(freq * 2, duration * 0.72, 'sine', (gainValue || 0.045) * 0.28, time);
   }
 
   // ── 创建使用当前 Bass 音色的一次性振荡器 ─────────────
@@ -791,15 +986,31 @@
     if (!ctx || !sumGain || !bassShaper) return;
     var t = startTime || ctx.currentTime;
     var osc = ctx.createOscillator();
+    var mod = ctx.createOscillator();
+    var modGain = ctx.createGain();
+    var sub = ctx.createOscillator();
+    var subOneShotGain = ctx.createGain();
     var shaper = ctx.createWaveShaper();
     var filter = ctx.createBiquadFilter();
     var g = ctx.createGain();
 
-    osc.type = currentBassType || 'sawtooth';
+    var wave = createPeriodicWaveFromSamples(currentWaveformId);
+    if (wave) osc.setPeriodicWave(wave); else osc.type = currentBassType || 'sawtooth';
     osc.frequency.value = freq;
+    mod.type = 'sine';
+    mod.frequency.value = freq * 2;
+    modGain.gain.value = Math.pow((currentSynthParams ? currentSynthParams.fm : 50) / 100, 1.35) * freq * 12;
+    mod.connect(modGain);
+    modGain.connect(osc.frequency);
+
+    sub.type = 'sine';
+    sub.frequency.value = freq / 2;
+    subOneShotGain.gain.setValueAtTime(0, t);
+    subOneShotGain.gain.linearRampToValueAtTime(0.04 + currentBodyVal * 0.12, t + 0.006);
+    subOneShotGain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
     // 复制当前 bass 的滤波器设置
-    filter.type = 'lowpass';
+    filter.type = currentSynthParams ? currentSynthParams.filterType : 'lowpass';
     filter.frequency.value = bassFilter ? bassFilter.frequency.value : 1200;
     filter.Q.value = bassFilter ? bassFilter.Q.value : 3;
 
@@ -818,10 +1029,16 @@
     osc.connect(filter);
     filter.connect(shaper);
     shaper.connect(g);
-    g.connect(sumGain);
+    g.connect(musicBusGain || sumGain);
+    sub.connect(subOneShotGain);
+    subOneShotGain.connect(musicBusGain || sumGain);
     osc.start(t);
+    mod.start(t);
+    sub.start(t);
     osc.stop(t + duration + 0.05);
-    if (currentTracking) { currentTracking.push(osc, g, filter, shaper); }
+    mod.stop(t + duration + 0.05);
+    sub.stop(t + duration + 0.05);
+    if (currentTracking) { currentTracking.push(osc, mod, modGain, sub, subOneShotGain, g, filter, shaper); }
   }
 
   // ── Drop 强度预览（gentle/standard/overload 各有不同音色）──
@@ -967,6 +1184,8 @@
     var structure = state.choices.structure;
     var variation = state.choices.variation;
     var drop = state.choices.drop;
+    var result = state.result || (global.StyleEngine && global.StyleEngine.evaluate ? global.StyleEngine.evaluate(state) : null);
+    var genre = result ? result.primaryStyle : 'brostep';
 
     // Drop 强度 → 混音参数
     var intensity;
@@ -984,6 +1203,8 @@
       build: { bars: 4, pad: true, drums: 'gradual', bass: 'default', melody: false },
       drop:  { bars: 8, pad: true, drums: 'full', bass: 'default', melody: false },
       totalBars: 14,
+      genre: genre,
+      preDropSilenceSteps: 2,
       intensity: intensity,
       variation: variation,
       structure: structure
@@ -992,12 +1213,14 @@
     if (structure === 'classicDrop') {
       // 明显停顿后重拍进入
       plan.drop.pauseBefore = true;
+      plan.preDropSilenceSteps = 8;
     } else if (structure === 'melodicNarrative') {
       // Build-up 保留旋律，Drop 中旋律与 Bass 共同出现
       plan.intro.melody = true;
       plan.build.melody = true;
       plan.build.bass = 'melodic';
       plan.drop.melody = true;
+      plan.preDropSilenceSteps = 2;
     } else if (structure === 'minimalTech') {
       // 元素更少，靠节奏和滤波推进
       plan.intro.pad = false;
@@ -1007,11 +1230,13 @@
       plan.build.filter = true;
       plan.drop.pad = false;
       plan.drop.drums = 'lean';
+      plan.preDropSilenceSteps = 1;
     } else if (structure === 'epicJourney') {
       // Build-up 更宽、更有上升感，Drop 更有冲击力
       plan.build.drums = 'rising';
       plan.build.rising = true;
       plan.drop.extraSub = true;
+      plan.preDropSilenceSteps = 4;
     }
 
     return plan;
@@ -1029,6 +1254,9 @@
       bassGate ? bassGate.gain : null,
       subGate ? subGate.gain : null,
       bassOsc ? bassOsc.frequency : null,
+      bassOsc2 ? bassOsc2.frequency : null,
+      fmOsc ? fmOsc.frequency : null,
+      fmGain ? fmGain.gain : null,
       bassFilter ? bassFilter.frequency : null,
       bassFilter ? bassFilter.Q : null,
       bassOutGain ? bassOutGain.gain : null,
@@ -1038,7 +1266,8 @@
       padOsc2 ? padOsc2.frequency : null,
       lfoDepth ? lfoDepth.gain : null,
       delaySend ? delaySend.gain : null,
-      feedbackGain ? feedbackGain.gain : null
+      feedbackGain ? feedbackGain.gain : null,
+      musicBusGain ? musicBusGain.gain : null
     ];
     for (var i = 0; i < params.length; i++) {
       if (params[i]) {
@@ -1051,23 +1280,12 @@
     if (subGate) smoothSet(subGate.gain, 0, 0.02, now);
     if (padGain) smoothSet(padGain.gain, 0, 0.05, now);
     if (lfoDepth) smoothSet(lfoDepth.gain, 0, 0.02, now);
+    if (musicBusGain) smoothSet(musicBusGain.gain, 1, 0.02, now);
 
     // 恢复用户正常参数
     if (state) {
-      var growl = macroVal(state, 'growl') / 100;
-      var body = macroVal(state, 'body') / 100;
-      var space = macroVal(state, 'space') / 100;
-
-      if (bassShaper) bassShaper.curve = makeDistortionCurve(growl);
-      currentGrowlVal = growl;
-      if (bassOutGain) smoothSet(bassOutGain.gain, 0.05 + body * 0.20, 0.05, now);
-      if (subGain) smoothSet(subGain.gain, 0.02 + body * 0.35, 0.05, now);
-      if (bassFilter) {
-        smoothSet(bassFilter.frequency, 2000 - growl * 1600, 0.05, now);
-        smoothSet(bassFilter.Q, 1 + growl * 14, 0.05, now);
-      }
-      if (delaySend) smoothSet(delaySend.gain, space * 0.4, 0.05, now);
-      if (feedbackGain) smoothSet(feedbackGain.gain, 0.15 + space * 0.35, 0.05, now);
+      updateBassParams(state);
+      updateEffects(state);
     }
   }
 
@@ -1107,6 +1325,9 @@
     var t0 = ctx.currentTime + 0.15;
 
     var plan = buildSongPlan(state);
+    var genrePhrases = GENRE_BASS_PHRASES[plan.genre] || GENRE_BASS_PHRASES.brostep;
+    currentKickSample = (plan.genre === 'bassHouse' || plan.genre === 'melodicDubstep') ? 'kickClean' : 'kickTearout';
+    currentSnareSample = (plan.genre === 'brostep' || plan.genre === 'riddimDubstep' || plan.genre === 'destinyFusion') ? 'snareWide' : 'snareBeefy';
     var rId = getRhythmId(state);
     var basePat = DRUM_PATTERNS[rId] || DRUM_PATTERNS.halfTime;
 
@@ -1115,12 +1336,12 @@
     var bassFreq = freqs.bass;
     var padFreqs = freqs.pad;
 
-    var bassPat = state.choices.bassPersonality === 'melodic' ? BASS_PATTERNS.melodic : BASS_PATTERNS.default;
+    var bassPat = genrePhrases.a;
 
-    // 保存原始参数（使用 macroVal 避免 0 被替换为 50）
-    var origGrowl = macroVal(state, 'growl');
-    var origBody = macroVal(state, 'body');
-    var origSpace = macroVal(state, 'space');
+    var synth = getSynthParams(state);
+    var origDrive = synth.drive;
+    var origSub = synth.sub;
+    var origSpace = synth.space;
 
     var intensity = plan.intensity;
     // Groove Density 是独立维度，不与 Drop Intensity 混淆
@@ -1143,6 +1364,15 @@
     var dropSteps = plan.drop.bars * 16;
     var dropHalfSteps = dropSteps / 2; // 4 bars = 64 steps
     var dropEnd = dropStart + dropSteps * stepDur;
+    var preDropSilenceStart = buildEnd - plan.preDropSilenceSteps * stepDur;
+    // i–VI–III–VII：Bass Music / melodic dubstep 中常见且稳定的 minor progression
+    var chordProgression = [
+      { ratio: 1, quality: 'minor' },
+      { ratio: Math.pow(2, -4 / 12), quality: 'major' },
+      { ratio: Math.pow(2, 3 / 12), quality: 'major' },
+      { ratio: Math.pow(2, -2 / 12), quality: 'major' }
+    ];
+    var minorScale = [1, Math.pow(2, 3 / 12), Math.pow(2, 5 / 12), Math.pow(2, 7 / 12), Math.pow(2, 10 / 12), 2];
 
     // ── Minimal Tech: 滤波器扫频 ──
     if (plan.intro.filter && bassFilter) {
@@ -1164,11 +1394,27 @@
       smoothSet(padGain.gain, 0, 0.05, introStart);
     }
 
+    // Intro 和声：每小节一个真正变化的和弦，而不是持续单音 Pad
+    if (plan.structure !== 'minimalTech') {
+      for (var ic = 0; ic < plan.intro.bars; ic++) {
+        var introChord = chordProgression[ic % chordProgression.length];
+        playChord(padFreqs[0] * introChord.ratio, introStart + ic * 16 * stepDur,
+          15.5 * stepDur, plan.genre === 'melodicDubstep' ? 0.052 : 0.025, introChord.quality);
+      }
+    }
+
     // Intro 旋律 (melodicNarrative)
     if (plan.intro.melody) {
-      var iMelNotes = [padFreqs[0], padFreqs[0] * 1.26, padFreqs[0] * 1.5, padFreqs[0] * 1.26];
-      for (var im = 0; im < introSteps; im += 4) {
-        playOneShot(iMelNotes[Math.floor(im / 4) % 4], stepDur * 3, 'triangle', 0.05, introStart + im * stepDur);
+      var introMelody = [
+        { step: 0, note: 0, dur: 3 }, { step: 4, note: 2, dur: 3 },
+        { step: 8, note: 1, dur: 2 }, { step: 12, note: 4, dur: 3 },
+        { step: 16, note: 3, dur: 3 }, { step: 20, note: 2, dur: 2 },
+        { step: 24, note: 4, dur: 3 }, { step: 29, note: 1, dur: 2 }
+      ];
+      for (var im = 0; im < introMelody.length; im++) {
+        var introEvent = introMelody[im];
+        playLeadNote(padFreqs[0] * minorScale[introEvent.note], introStart + introEvent.step * stepDur,
+          introEvent.dur * stepDur, 0.038);
       }
     }
 
@@ -1177,6 +1423,13 @@
     // ════════════════════════════════════════════════
     if (plan.build.pad) {
       smoothSet(padGain.gain, 0.02 + (origSpace / 100) * 0.05, 0.1, buildStart);
+    }
+    playRiser(buildStart, buildEnd - buildStart);
+
+    for (var bc = 0; bc < plan.build.bars; bc++) {
+      var buildChord = chordProgression[(bc + 2) % chordProgression.length];
+      playChord(padFreqs[0] * buildChord.ratio, buildStart + bc * 16 * stepDur,
+        15 * stepDur, plan.genre === 'melodicDubstep' ? 0.048 : 0.018, buildChord.quality);
     }
 
     // Build-up 鼓组
@@ -1188,6 +1441,7 @@
         var bProg = bs / buildSteps;
 
         var bKick = false, bSnare = false, bHat = false;
+        if (bsTime >= preDropSilenceStart) continue;
 
         if (bDrumMode === 'gradual') {
           // 逐渐增加：前 1/4 只有 kick，1/4-1/2 加 hi-hat，1/2 后加 snare
@@ -1210,14 +1464,20 @@
           }
         }
 
-        // Classic Drop: 最后 2 拍静默作为停顿
-        if (plan.drop.pauseBefore && bProg > 0.875) {
-          bKick = false; bSnare = false; bHat = false;
-        }
-
         if (bKick) playKick(bsTime);
         if (bSnare) playSnare(bsTime);
         if (bHat) playHihat(bsTime, 0.06);
+      }
+    }
+
+    // Build-up 最后一小节渐密 Snare Roll，停顿区域前结束
+    for (var roll = Math.max(0, buildSteps - 16); roll < buildSteps - plan.preDropSilenceSteps; roll++) {
+      var rollLocal = roll - (buildSteps - 16);
+      var shouldHit = rollLocal < 8 ? rollLocal % 4 === 0 : (rollLocal < 12 ? rollLocal % 2 === 0 : true);
+      if (shouldHit) {
+        var rollTime = buildStart + roll * stepDur;
+        if (sampleBank[currentSnareSample]) playSample(currentSnareSample, rollTime, 0.18 + rollLocal / 16 * 0.18, 0.96 + rollLocal * 0.01);
+        else playSnare(rollTime);
       }
     }
 
@@ -1227,26 +1487,35 @@
       var bBassPat = bBassMode === 'melodic' ? BASS_PATTERNS.melodic : BASS_PATTERNS.default;
       for (var bb = 0; bb < buildSteps; bb++) {
         var bbProg = bb / buildSteps;
-        if (bbProg > 0.4 && bBassPat[bb % 32]) {
+        if (bbProg > 0.4 && bBassPat[bb % 32] && buildStart + bb * stepDur < preDropSilenceStart) {
           var bbFreq = bassFreq;
           if (plan.build.rising) {
             bbFreq = bassFreq * (1 + bbProg * 0.3);
           }
           var bbTime = buildStart + bb * stepDur;
-          if (bassOsc) {
-            smoothSet(bassOsc.frequency, bbFreq, 0.005, bbTime);
-            triggerBassNote(bbTime, stepDur * 1.2);
-          }
+          scheduleBassPitch(bbFreq, bbTime);
+          triggerBassNote(bbTime, stepDur * 1.2);
         }
       }
     }
 
     // Build-up 旋律 (melodicNarrative)
     if (plan.build.melody) {
-      var bMelNotes = [padFreqs[0], padFreqs[0] * 1.26, padFreqs[0] * 1.5, padFreqs[0] * 1.26,
-                       padFreqs[0] * 1.5, padFreqs[0], padFreqs[0] * 1.26, padFreqs[0] * 1.5];
-      for (var bm = 0; bm < buildSteps; bm += 2) {
-        playOneShot(bMelNotes[Math.floor(bm / 2) % 8], stepDur * 1.5, 'triangle', 0.04, buildStart + bm * stepDur);
+      var buildMotif = [
+        { step: 0, note: 0 }, { step: 4, note: 1 }, { step: 7, note: 2 },
+        { step: 10, note: 3 }, { step: 12, note: 4 }, { step: 14, note: 5 }
+      ];
+      for (var buildBar = 0; buildBar < plan.build.bars; buildBar++) {
+        for (var bm = 0; bm < buildMotif.length; bm++) {
+          var buildEvent = buildMotif[bm];
+          var melodyStep = buildBar * 16 + buildEvent.step;
+          var melodyTime = buildStart + melodyStep * stepDur;
+          if (melodyTime < preDropSilenceStart) {
+            var buildLift = (buildBar === plan.build.bars - 1 && buildEvent.note >= 4) ? 2 : 1;
+            playLeadNote(padFreqs[0] * minorScale[buildEvent.note] * buildLift, melodyTime,
+              stepDur * (buildEvent.step >= 12 ? 1.2 : 2.1), 0.032 + buildBar * 0.003);
+          }
+        }
       }
     }
 
@@ -1260,8 +1529,8 @@
     var drumDensity = intensity.drumDensity;
     var spaceMult = intensity.spaceMult;
 
-    bassShaper.curve = makeDistortionCurve(Math.min(100, Math.max(0, origGrowl * distortMult)) / 100);
-    smoothSet(bassOutGain.gain, (0.05 + (origBody / 100) * 0.20) * gainMult, 0.05, dropStart);
+    bassShaper.curve = makeDistortionCurve(Math.min(1.25, Math.max(0, (origDrive / 100) * distortMult)));
+    smoothSet(bassOutGain.gain, (0.105 + (origDrive / 100) * 0.07) * gainMult, 0.05, dropStart);
 
     // Drop pad
     if (plan.drop.pad) {
@@ -1272,7 +1541,31 @@
 
     // Epic Journey: 额外 sub 增强冲击力
     if (plan.drop.extraSub && subGain) {
-      smoothSet(subGain.gain, 0.15, 0.05, dropStart);
+      smoothSet(subGain.gain, 0.05 + (origSub / 100) * 0.34, 0.05, dropStart);
+    }
+
+    playImpact(dropStart, plan.drop.extraSub ? 1.08 : 0.9);
+
+    // Drop 音色编排：每小节改变 Filter / FM / Wobble，形成 call-and-response。
+    // 用户旋钮仍是中心值；这里仅做围绕中心值的小幅音乐性变化。
+    var cutoffShapes = {
+      riddimDubstep: [0.72, 0.96, 0.78, 1.08, 0.68, 1.02, 0.82, 1.16],
+      brostep: [1.02, 0.74, 1.18, 0.86, 1.12, 0.70, 1.24, 0.92],
+      hybridTrap: [0.82, 1.10, 0.76, 1.22, 0.88, 1.18, 0.72, 1.28],
+      bassHouse: [0.92, 1.08, 0.96, 1.14, 0.94, 1.12, 0.98, 1.18],
+      melodicDubstep: [0.86, 1.02, 1.14, 0.94, 0.90, 1.08, 1.20, 1.00],
+      destinyFusion: [0.78, 1.12, 0.88, 1.22, 0.72, 1.18, 0.94, 1.28]
+    };
+    var timbreShape = cutoffShapes[plan.genre] || cutoffShapes.brostep;
+    var baseFmDepth = Math.pow(synth.fm / 100, 1.35) * bassFreq * 16;
+    var baseWobbleDepth = Math.pow(synth.depth / 100, 1.35) * Math.min(3600, synth.cutoff * 0.88);
+    for (var colorBar = 0; colorBar < plan.drop.bars; colorBar++) {
+      var colorTime = dropStart + colorBar * 16 * stepDur;
+      var color = timbreShape[colorBar % timbreShape.length];
+      if (plan.variation === 'mutate' && colorBar >= plan.drop.bars / 2) color *= 1.08;
+      smoothSet(bassFilter.frequency, Math.max(80, Math.min(8000, synth.cutoff * color)), 0.055, colorTime);
+      smoothSet(fmGain.gain, baseFmDepth * (0.82 + (colorBar % 3) * 0.11), 0.045, colorTime);
+      smoothSet(lfoDepth.gain, baseWobbleDepth * (colorBar % 2 ? 1.08 : 0.82), 0.045, colorTime);
     }
 
     // Classic Drop: 停顿后重拍 — 第一拍强 kick
@@ -1306,7 +1599,10 @@
       }
 
       if (dKick) playKick(dsTime);
-      if (dSnare) playSnare(dsTime);
+      if (dSnare) {
+        playSnare(dsTime);
+        if (plan.genre === 'hybridTrap' || plan.genre === 'bassHouse') playClap(dsTime + 0.008, 0.22);
+      }
       if (dHat) playHihat(dsTime, dHatGain);
 
       // Overload + Busy: 额外 fill（两个维度都高时才加 fill）
@@ -1318,80 +1614,103 @@
       if (grooveDensity === 2 && ds % 8 === 6 && !dHat) {
         playHihat(dsTime, 0.04);
       }
+      // 每两小节末尾加入真实鼓过门，Brostep/Hybrid 更激进
+      if (ds % 32 === 29 && (plan.genre === 'brostep' || plan.genre === 'hybridTrap' || plan.variation === 'mutate')) {
+        playSnare(dsTime);
+        playHihat(dsTime + stepDur * 0.5, 0.045);
+        playSnare(dsTime + stepDur);
+      }
     }
 
-    // Drop bass — Variation 影响后半段（第 5-8 小节）
-    var dropBassPatA = bassPat;     // 前半段 pattern
-    var dropBassPatB = bassPat;     // 后半段 pattern (repeat 默认相同)
+    // Drop bass — Variation 影响后半段（第 5-8 小节）。
+    // 若用户写了 Pattern，它会明确接管后半段 Bass，而不是靠自动化事件相互覆盖。
+    var dropBassPatA = genrePhrases.a;
+    var dropBassPatB = plan.variation === 'repeat' ? genrePhrases.a : genrePhrases.b;
     var dropBassFreqB = bassFreq;   // 后半段频率
 
     if (plan.variation === 'mutate') {
-      // Mutate: 后半段修改 Bass rhythm
-      dropBassPatB = [
-        1,0,0,1, 0,0,1,0, 1,0,0,0, 0,1,0,0,
-        1,0,1,0, 0,1,0,0, 1,0,0,1, 0,0,1,0
-      ];
+      dropBassPatB = genrePhrases.b;
     } else if (plan.variation === 'lift') {
       // Lift: 后半段提高音区
       dropBassFreqB = bassFreq * 1.5; // 上行五度
     }
 
+    var hasUserPattern = !!(state.performance && state.performance.events && state.performance.events.length);
     for (var db = 0; db < dropSteps; db++) {
       var dbTime = dropStart + db * stepDur;
       var isSecondHalf = db >= dropHalfSteps;
+      if (isSecondHalf && hasUserPattern) continue;
       var usePat = isSecondHalf ? dropBassPatB : dropBassPatA;
       var useFreq = isSecondHalf ? dropBassFreqB : bassFreq;
 
       if (usePat[db % 32]) {
-        if (bassOsc) {
-          smoothSet(bassOsc.frequency, useFreq, 0.005, dbTime);
-          triggerBassNote(dbTime, stepDur * 1.5);
+        var phraseStep = db % 32;
+        var callResponseLift = (plan.genre === 'brostep' || plan.genre === 'destinyFusion') && (phraseStep === 6 || phraseStep === 14 || phraseStep === 23);
+        scheduleBassPitch(callResponseLift ? useFreq * 1.5 : useFreq, dbTime);
+        triggerBassNote(dbTime, stepDur * (plan.genre === 'bassHouse' ? 0.85 : 1.45));
+      }
+    }
+
+    // Drop 和弦与旋律分层；旋律流派更宽，其余流派只保留低声部锚点
+    for (var dc = 0; dc < plan.drop.bars; dc++) {
+      var chordGain = (plan.genre === 'melodicDubstep' || plan.genre === 'destinyFusion') ? 0.055 : 0.014;
+      var dropChord = chordProgression[dc % chordProgression.length];
+      playChord(padFreqs[0] * dropChord.ratio, dropStart + dc * 16 * stepDur,
+        15 * stepDur, chordGain, dropChord.quality);
+    }
+
+    // Drop 旋律：有留白的两小节 A/B 乐句；Variation 决定后半段如何发展。
+    if (plan.drop.melody) {
+      var dropMelodyA = [
+        { step: 0, note: 0, dur: 3 }, { step: 4, note: 2, dur: 2 }, { step: 7, note: 4, dur: 3 },
+        { step: 12, note: 3, dur: 2 }, { step: 16, note: 1, dur: 3 }, { step: 21, note: 3, dur: 2 },
+        { step: 24, note: 5, dur: 3 }, { step: 29, note: 4, dur: 2 }
+      ];
+      var dropMelodyB = [
+        { step: 0, note: 0, dur: 2 }, { step: 3, note: 3, dur: 2 }, { step: 6, note: 2, dur: 2 },
+        { step: 10, note: 4, dur: 3 }, { step: 15, note: 1, dur: 2 }, { step: 18, note: 2, dur: 2 },
+        { step: 22, note: 5, dur: 3 }, { step: 27, note: 3, dur: 2 }, { step: 30, note: 4, dur: 2 }
+      ];
+      for (var melodyBlock = 0; melodyBlock < plan.drop.bars / 2; melodyBlock++) {
+        var motif = melodyBlock % 2 ? dropMelodyB : dropMelodyA;
+        if (plan.variation === 'mutate' && melodyBlock >= 2) motif = melodyBlock % 2 ? dropMelodyA : dropMelodyB;
+        var melodyTranspose = (plan.variation === 'lift' && melodyBlock >= 2) ? 1.5 : 1;
+        for (var dm = 0; dm < motif.length; dm++) {
+          var dropEvent = motif[dm];
+          var dropMelodyTime = dropStart + (melodyBlock * 32 + dropEvent.step) * stepDur;
+          playLeadNote(padFreqs[0] * minorScale[dropEvent.note] * melodyTranspose,
+            dropMelodyTime, dropEvent.dur * stepDur, 0.042);
         }
       }
     }
 
-    // Drop 旋律 (melodicNarrative: 旋律与 Bass 共同出现)
-    if (plan.drop.melody) {
-      var dMelNotes = [padFreqs[0], padFreqs[0] * 1.26, padFreqs[0] * 1.5, padFreqs[0] * 1.26,
-                       padFreqs[0] * 1.5, padFreqs[0], padFreqs[0] * 1.26, padFreqs[0] * 1.5,
-                       padFreqs[0], padFreqs[0] * 1.5, padFreqs[0] * 1.26, padFreqs[0],
-                       padFreqs[0] * 1.26, padFreqs[0] * 1.5, padFreqs[0], padFreqs[0] * 1.26];
-      for (var dm = 0; dm < dropSteps; dm += 2) {
-        playOneShot(dMelNotes[Math.floor(dm / 2) % 16], stepDur * 1.5, 'triangle', 0.05, dropStart + dm * stepDur);
-      }
-    }
-
-    // Drop: 后半段叠加用户 Pattern
-    if (state.performance && state.performance.events &&
-        state.performance.events.length > 0) {
+    // Drop: 用户 Pattern 接管后半段 Bass，并可追加鼓 Fill / 和弦 Stab
+    if (hasUserPattern) {
       var evs = state.performance.events;
       var dropStepDur8 = (60 / bpm) / 2; // 八分音符
       var patternOffset = dropStart + dropHalfSteps * stepDur;
-      for (var e = 0; e < evs.length; e++) {
-        var ev = evs[e];
-        var et = patternOffset + ev.step * dropStepDur8;
-        if (et >= dropEnd) break;
+      for (var repetition = 0; repetition < 4; repetition++) {
+        for (var e = 0; e < evs.length; e++) {
+          var ev = evs[e];
+          var et = patternOffset + repetition * 8 * dropStepDur8 + ev.step * dropStepDur8;
+          if (et >= dropEnd) continue;
 
-        if (ev.pad === 'D') {
-          if (bassOsc) {
-            smoothSet(bassOsc.frequency, bassFreq, 0.005, et);
+          if (ev.pad === 'D') {
+            scheduleBassPitch(bassFreq, et);
             triggerBassNote(et, dropStepDur8 * 0.9);
-          }
-          playKick(et);
-        } else if (ev.pad === 'F') {
-          if (bassOsc) {
-            smoothSet(bassOsc.frequency, bassFreq * 1.5, 0.005, et);
+            playKick(et);
+          } else if (ev.pad === 'F') {
+            scheduleBassPitch(bassFreq * 1.5, et);
             triggerBassNote(et, dropStepDur8 * 0.9);
-            smoothSet(bassOsc.frequency, bassFreq, 0.005, et + dropStepDur8 * 0.9 + 0.01);
+            scheduleBassPitch(bassFreq, et + dropStepDur8 * 0.9 + 0.01);
+          } else if (ev.pad === 'J') {
+            playSnare(et);
+            playHihat(et + dropStepDur8 * 0.3, 0.05);
+            playSnare(et + dropStepDur8 * 0.6);
+          } else if (ev.pad === 'K') {
+            var patternChord = chordProgression[repetition % chordProgression.length];
+            playChord(padFreqs[0] * patternChord.ratio, et, dropStepDur8 * 0.9, 0.075, patternChord.quality);
           }
-        } else if (ev.pad === 'J') {
-          playSnare(et);
-          playHihat(et + dropStepDur8 * 0.3, 0.05);
-          playSnare(et + dropStepDur8 * 0.6);
-        } else if (ev.pad === 'K') {
-          playOneShot(padFreqs[0], dropStepDur8 * 0.9, 'sine', 0.12, et);
-          playOneShot(padFreqs[1], dropStepDur8 * 0.9, 'triangle', 0.10, et);
-          playOneShot(padFreqs[0] * 1.5, dropStepDur8 * 0.9, 'sine', 0.08, et);
         }
       }
     }

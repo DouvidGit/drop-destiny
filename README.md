@@ -15,7 +15,7 @@
 ## 创作流程
 
 1. Sound World：选择声音氛围。
-2. Bass Forge：选择 Bass 性格并调节 Body / Growl / Wobble / Space。
+2. Bass Forge：选择 Bass 性格，在简化合成器中调节 Wavetable、FM、Filter、Drive、同步 LFO、Sub 与 Space。
 3. Groove Lab：选择节奏与 Sparse / Balanced / Busy 密度。
 4. Arrangement：决定 Build-up 与 Drop 后半段变化。
 5. Live Drop：选择 Drop 强度并编辑一小节 8-step Sequencer。
@@ -26,7 +26,12 @@
 
 - 原生 HTML / CSS / JavaScript
 - Web Audio API 合成与调度
+- CC0 AKWF 单周期波形与 FM Bass 合成
+- CC0 采样鼓组、Impact、Riser 与 Kick Sidechain
+- 分流派 Bass 乐句、和弦进行、A/B 旋律、音色自动化与鼓组过门
 - AnalyserNode 实时波形和频谱
 - 无框架、无 CDN、无外部运行时依赖
 
 开发用风格分布测试位于 `dev/style-engine-test.html`。
+
+第三方音频素材来源和许可见 [ASSET_LICENSES.md](ASSET_LICENSES.md)。

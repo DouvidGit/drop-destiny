@@ -142,6 +142,31 @@
     mechanical: { body: 65, growl: 70, wobble: 75, space: 30 }
   };
 
+  // ── Bass Forge 真实合成器预设 ───────────────────────
+
+  var SYNTH_PRESETS = {
+    brutal: {
+      waveform: 'distorted', filterType: 'lowpass',
+      sub: 78, fm: 82, cutoff: 920, resonance: 12.5,
+      drive: 90, rate: 3, depth: 68, space: 22
+    },
+    wobbly: {
+      waveform: 'granite', filterType: 'bandpass',
+      sub: 64, fm: 58, cutoff: 1450, resonance: 10,
+      drive: 62, rate: 2, depth: 92, space: 38
+    },
+    melodic: {
+      waveform: 'vocal', filterType: 'lowpass',
+      sub: 52, fm: 28, cutoff: 3100, resonance: 4.5,
+      drive: 28, rate: 1, depth: 42, space: 76
+    },
+    mechanical: {
+      waveform: 'bitCore', filterType: 'notch',
+      sub: 66, fm: 74, cutoff: 1250, resonance: 15,
+      drive: 76, rate: 3, depth: 78, space: 26
+    }
+  };
+
   // n = (currentValue - presetDefault) / 50，然后乘以下列系数
   var MACRO_DNA_RULES = {
     body:   { aggression: 12, rhythm: 5, space: -5 },
@@ -275,6 +300,7 @@
     DNA_AXES: DNA_AXES,
     CHOICES: CHOICES,
     BASS_PRESETS: BASS_PRESETS,
+    SYNTH_PRESETS: SYNTH_PRESETS,
     MACRO_DNA_RULES: MACRO_DNA_RULES,
     STYLE_PROFILES: STYLE_PROFILES,
     STYLE_ANCHORS: STYLE_ANCHORS,
