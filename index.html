@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DROP//DESTINY</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── Header ────────────────────────────── -->
+    <header>
+      <div class="logo">DROP//DESTINY</div>
+      <div class="progress-dots" id="progressDots">
+        <span class="dot" data-phase="soundWorld"></span>
+        <span class="dot" data-phase="bassForge"></span>
+        <span class="dot" data-phase="groove"></span>
+        <span class="dot" data-phase="arrangement"></span>
+        <span class="dot" data-phase="liveDrop"></span>
+      </div>
+      <button id="muteBtn" class="mute-btn" title="静音 (M)" aria-label="静音">
+        <span class="icon-on">🔊</span>
+        <span class="icon-off">🔇</span>
+      </button>
+    </header>
+
+    <!-- ── Music Workbench（跨阶段持续显示）────────── -->
+    <div id="workbench" class="workbench" style="display:none">
+      <button id="wbPlayPause" class="wb-play-btn" title="播放/暂停" aria-label="播放暂停">
+        <span class="wb-icon-play">▶</span>
+        <span class="wb-icon-pause">⏸</span>
+      </button>
+      <div class="wb-info">
+        <span class="wb-bpm" id="wbBpm">--- BPM</span>
+        <span class="wb-sep">·</span>
+        <span class="wb-position" id="wbPosition">1.1</span>
+      </div>
+      <canvas id="wbCanvas" class="wb-canvas"></canvas>
+    </div>
+
+    <!-- ── Main ──────────────────────────────── -->
+    <main id="main">
+
+      <!-- Intro -->
+      <section id="intro" class="phase-section active">
+        <div class="intro-content">
+          <h1 class="intro-title">DROP//DESTINY</h1>
+          <p class="intro-subtitle">引导你完成第一首 Bass Music 作品</p>
+          <p class="intro-desc">
+            选择声音世界，塑造你的 Bass，搭建律动，安排结构，
+            然后亲手砸下最终 Drop——看看观众如何反应。
+          </p>
+          <button class="btn-primary btn-start" id="startBtn">开始创作</button>
+          <p class="intro-hint">键盘：数字键选择，Enter 确认，D/F/J/K 演奏</p>
+        </div>
+        <canvas id="introCanvas" class="bg-canvas"></canvas>
+      </section>
+
+      <!-- Phase 1: Sound World -->
+      <section id="soundWorld" class="phase-section">
+        <h2 class="phase-title">声音世界</h2>
+        <p class="phase-desc">选择一个氛围，设定你的基调</p>
+        <div class="option-grid" id="soundWorldOptions"></div>
+        <div class="nav-buttons">
+          <button class="btn-back" data-back>← 上一步</button>
+          <button class="btn-next" data-next disabled>下一步 →</button>
+        </div>
+      </section>
+
+      <!-- Phase 2: Bass Forge -->
+      <section id="bassForge" class="phase-section">
+        <h2 class="phase-title">Bass Forge</h2>
+        <p class="phase-desc">选择 Bass 核心性格，然后调节宏观旋钮</p>
+        <div class="option-grid" id="bassPersonalityOptions"></div>
+        <div class="macro-panel" id="macroPanel" style="display:none">
+          <h3 class="macro-title">宏观控制</h3>
+          <div class="macro-grid">
+            <div class="macro-control" data-macro="body">
+              <label>Body <small>Sub 厚度</small></label>
+              <input type="range" min="0" max="100" value="50" id="macroBody" data-macro-input="body">
+              <span class="macro-value" id="macroBodyVal">50</span>
+            </div>
+            <div class="macro-control" data-macro="growl">
+              <label>Growl <small>中频咆哮</small></label>
+              <input type="range" min="0" max="100" value="50" id="macroGrowl" data-macro-input="growl">
+              <span class="macro-value" id="macroGrowlVal">50</span>
+            </div>
+            <div class="macro-control" data-macro="wobble">
+              <label>Wobble <small>调制运动</small></label>
+              <input type="range" min="0" max="100" value="50" id="macroWobble" data-macro-input="wobble">
+              <span class="macro-value" id="macroWobbleVal">50</span>
+            </div>
+            <div class="macro-control" data-macro="space">
+              <label>Space <small>宽度混响</small></label>
+              <input type="range" min="0" max="100" value="50" id="macroSpace" data-macro-input="space">
+              <span class="macro-value" id="macroSpaceVal">50</span>
+            </div>
+          </div>
+          <p class="macro-hint" id="macroHint">从预设默认值开始，至少调节一个旋钮</p>
+        </div>
+        <div class="nav-buttons">
+          <button class="btn-back" data-back>← 上一步</button>
+          <button class="btn-next" data-next disabled>下一步 →</button>
+        </div>
+      </section>
+
+      <!-- Phase 3: Groove Lab -->
+      <section id="groove" class="phase-section">
+        <h2 class="phase-title">Groove Lab</h2>
+        <p class="phase-desc">选择节奏家族，然后选择密度</p>
+        <div class="option-grid" id="rhythmOptions"></div>
+        <div class="density-panel" id="densityPanel" style="display:none">
+          <h3 class="density-title">密度</h3>
+          <div class="density-buttons" id="densityButtons">
+            <button class="density-btn" data-density="0">Sparse</button>
+            <button class="density-btn active" data-density="1">Balanced</button>
+            <button class="density-btn" data-density="2">Busy</button>
+          </div>
+        </div>
+        <div class="nav-buttons">
+          <button class="btn-back" data-back>← 上一步</button>
+          <button class="btn-next" data-next disabled>下一步 →</button>
+        </div>
+      </section>
+
+      <!-- Phase 4: Arrangement -->
+      <section id="arrangement" class="phase-section">
+        <h2 class="phase-title">Arrangement</h2>
+        <p class="phase-desc">选择歌曲结构，然后决定 Drop 后半段如何变化</p>
+        <div class="option-grid" id="structureOptions"></div>
+        <div class="variation-panel" id="variationPanel" style="display:none">
+          <h3 class="variation-title">Drop 后半段变化</h3>
+          <div class="variation-buttons" id="variationButtons">
+            <button class="variation-btn" data-variation="repeat">Repeat</button>
+            <button class="variation-btn" data-variation="mutate">Mutate</button>
+            <button class="variation-btn" data-variation="lift">Lift</button>
+          </div>
+        </div>
+        <div class="nav-buttons">
+          <button class="btn-back" data-back>← 上一步</button>
+          <button class="btn-next" data-next disabled>下一步 →</button>
+        </div>
+      </section>
+
+      <!-- Phase 5: Live Drop -->
+      <section id="liveDrop" class="phase-section">
+        <h2 class="phase-title">Live Drop</h2>
+        <p class="phase-desc">选择 Drop 强度，然后用 D/F/J/K 编辑一小节 8-step Sequencer</p>
+        <div class="option-grid option-grid-3" id="dropOptions"></div>
+        <div class="pattern-panel" id="patternPanel" style="display:none">
+          <h3 class="pattern-title">一小节 8 步 Pattern</h3>
+          <p class="pattern-hint">点击格子或按 D/F/J/K 键切换。每行一个音色层，每列一个八分音符。</p>
+          <div class="pattern-grid" id="patternGrid"></div>
+          <div class="pattern-actions">
+            <button class="btn-secondary" id="clearPattern">清空</button>
+            <button class="btn-secondary" id="playPattern">试听 Pattern</button>
+            <button class="btn-secondary" id="stopPattern" style="display:none">停止试听</button>
+          </div>
+        </div>
+        <div class="nav-buttons">
+          <button class="btn-back" data-back>← 上一步</button>
+          <button class="btn-next" data-next id="completeDrop" disabled>完成演奏 →</button>
+        </div>
+      </section>
+
+      <!-- Result -->
+      <section id="result" class="phase-section">
+        <div id="resultContent"></div>
+        <div class="nav-buttons result-nav">
+          <button class="btn-back" id="backToModify">← 返回修改</button>
+          <button class="btn-secondary" id="playSong">播放作品</button>
+          <button class="btn-secondary" id="stopSong" style="display:none">停止播放</button>
+          <button class="btn-primary" id="restart">重新创作</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ── Footer: DNA Bars ──────────────────── -->
+    <footer id="footer" style="display:none">
+      <div class="dna-bars" id="dnaBars"></div>
+      <div class="phase-label" id="phaseLabel"></div>
+    </footer>
+
+  </div>
+
+  <!-- Scripts (classic, no ES modules) -->
+  <script src="data.js"></script>
+  <script src="style-engine.js"></script>
+  <script src="audio-engine.js"></script>
+  <script src="visualizer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
