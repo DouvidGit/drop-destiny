@@ -41,7 +41,9 @@ const fusionPct = counts.destinyFusion / paths.length * 100;
 if (fusionPct < 1 || fusionPct > 8) fail(`Destiny Fusion distribution out of range: ${fusionPct.toFixed(2)}%`);
 
 // Every synth preset must be complete and reference an embedded wavetable.
-const synthKeys = ['waveform', 'filterType', 'sub', 'fm', 'cutoff', 'resonance', 'drive', 'rate', 'depth', 'space'];
+const synthKeys = ['waveform', 'oscB', 'oscMix', 'detune', 'filterType', 'filterEnv',
+  'sub', 'fm', 'cutoff', 'resonance', 'drive', 'attack', 'release',
+  'rate', 'depth', 'lfoShape', 'lfoTarget', 'space'];
 for (const [id, preset] of Object.entries(D.SYNTH_PRESETS)) {
   for (const key of synthKeys) {
     if (preset[key] == null) fail(`Synth preset ${id} is missing ${key}`);
@@ -51,7 +53,9 @@ for (const [id, preset] of Object.entries(D.SYNTH_PRESETS)) {
 if (Object.keys(WT.tables).length < 5) fail('Expected at least five wavetables');
 
 // Embedded CC0 samples must be present and contain decodable base64 bytes.
-const requiredAssets = ['kickClean', 'kickTearout', 'snareBeefy', 'snareWide', 'hatClosed', 'clapFat', 'impactDeep', 'riser140'];
+const requiredAssets = ['kickClean', 'kickTearout', 'snareBeefy', 'snareWide',
+  'hatRiddim', 'hatBrostep', 'hatTrap', 'hatHouse', 'hatMelodic', 'hatFusion',
+  'hatOpenHouse', 'hatOpenSoft', 'hatOpenTrap', 'clapFat', 'impactDeep', 'riser140'];
 for (const id of requiredAssets) {
   if (!assets[id] || !assets[id].base64) fail(`Missing embedded audio asset ${id}`);
   if (Buffer.from(assets[id].base64, 'base64').length < 1000) fail(`Audio asset ${id} is unexpectedly small`);

@@ -28,9 +28,41 @@ const sampleSelections = {
     title: 'Brostep - Wide Punchy Snare', author: 'Hybrid_V', freesoundId: 319613,
     url: 'https://cdn.freesound.org/previews/319/319613_5436764-hq.mp3'
   },
-  hatClosed: {
-    title: 'MoCaSG_CH01.mp3', author: 'suspiciononline', freesoundId: 49064,
-    url: 'https://cdn.freesound.org/previews/49/49064_528100-hq.mp3'
+  hatRiddim: {
+    title: 'Sabian fake 1', author: 'Logicogonist', freesoundId: 810397,
+    url: 'https://cdn.freesound.org/previews/810/810397_3797507-hq.mp3'
+  },
+  hatBrostep: {
+    title: '[Drums] hat 0', author: 'waveplaySFX', freesoundId: 197237,
+    url: 'https://cdn.freesound.org/previews/197/197237_1676145-hq.mp3'
+  },
+  hatTrap: {
+    title: 'FD808A HiHat closed.wav', author: 'Uberproduktion', freesoundId: 455639,
+    url: 'https://cdn.freesound.org/previews/455/455639_3677139-hq.mp3'
+  },
+  hatHouse: {
+    title: 'Hi-Hat Closed Hit - Clean', author: 'TheEndOfACycle', freesoundId: 674296,
+    url: 'https://cdn.freesound.org/previews/674/674296_3130497-hq.mp3'
+  },
+  hatMelodic: {
+    title: 'Dry Hat.wav', author: 'CrushedLoops', freesoundId: 626906,
+    url: 'https://cdn.freesound.org/previews/626/626906_13483597-hq.mp3'
+  },
+  hatFusion: {
+    title: 'Closed Hi Hat.wav', author: 'karolist', freesoundId: 378377,
+    url: 'https://cdn.freesound.org/previews/378/378377_6399962-hq.mp3'
+  },
+  hatOpenHouse: {
+    title: 'SwarajiwaTH Open Hihat.wav', author: 'jack126guy', freesoundId: 371696,
+    url: 'https://cdn.freesound.org/previews/371/371696_5506271-hq.mp3'
+  },
+  hatOpenSoft: {
+    title: 'Hi Hat Open to Closed Soft Hit Sticks.wav', author: 'captain k man', freesoundId: 125039,
+    url: 'https://cdn.freesound.org/previews/125/125039_2272910-hq.mp3'
+  },
+  hatOpenTrap: {
+    title: 'FD808A HiHat open.wav', author: 'Uberproduktion', freesoundId: 455638,
+    url: 'https://cdn.freesound.org/previews/455/455638_3677139-hq.mp3'
   },
   clapFat: {
     title: 'Fat clap', author: 'deleted_user_2906614', freesoundId: 239906,

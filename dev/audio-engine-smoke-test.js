@@ -129,6 +129,9 @@ async function run() {
 
   const genres = ['riddimDubstep', 'brostep', 'hybridTrap', 'bassHouse', 'melodicDubstep', 'destinyFusion'];
   const waveforms = ['distorted', 'fmRazor', 'granite', 'bitCore', 'vocal'];
+  const oscBTypes = ['sawtooth', 'square', 'triangle', 'sine'];
+  const lfoShapes = ['sine', 'triangle', 'sawtooth', 'square'];
+  const lfoTargets = ['filter', 'pitch', 'fm'];
   const structures = ['classicDrop', 'melodicNarrative', 'minimalTech', 'epicJourney'];
   for (let i = 0; i < genres.length; i++) {
     state.result = { primaryStyle: genres[i] };
@@ -138,6 +141,14 @@ async function run() {
     state.synthParams.fm = i % 2 ? 100 : 0;
     state.synthParams.depth = i % 2 ? 0 : 100;
     state.synthParams.cutoff = i % 2 ? 80 : 8000;
+    state.synthParams.oscB = oscBTypes[i % oscBTypes.length];
+    state.synthParams.oscMix = i % 2 ? 0 : 100;
+    state.synthParams.detune = i % 2 ? 0 : 36;
+    state.synthParams.attack = i % 2 ? 1 : 180;
+    state.synthParams.release = i % 2 ? 30 : 500;
+    state.synthParams.filterEnv = i % 2 ? 0 : 100;
+    state.synthParams.lfoShape = lfoShapes[i % lfoShapes.length];
+    state.synthParams.lfoTarget = lfoTargets[i % lfoTargets.length];
     audio.applyState(state);
     for (const events of [[], data.NEUTRAL_PATTERN.slice()]) {
       state.performance.events = events;

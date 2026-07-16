@@ -15,7 +15,7 @@
 ## 创作流程
 
 1. Sound World：选择声音氛围。
-2. Bass Forge：选择 Bass 性格，在简化合成器中调节 Wavetable、FM、Filter、Drive、同步 LFO、Sub 与 Space。
+2. Bass Forge：选择 Bass 性格，在简化双振荡器中调节 Wavetable / Osc B、Mix、Detune、FM、Filter Envelope、Amp Envelope、同步 LFO、Sub 与 Space。
 3. Groove Lab：选择节奏与 Sparse / Balanced / Busy 密度。
 4. Arrangement：决定 Build-up 与 Drop 后半段变化。
 5. Live Drop：选择 Drop 强度并编辑一小节 8-step Sequencer。
@@ -31,7 +31,10 @@
 - 分流派主 Bass 与 Reese / Vowel / Metallic / 808 Glide / Donk 辅助音色
 - 逐音 Bass 音高、时值、Filter / FM / Wobble articulation 与 A/B 节奏乐句
 - Melodic Dubstep Supersaw 扩展和弦、Saw Lead、回应旋律与稀疏 Bass 点缀
-- 六套分流派 Kick / Snare / Hat 处理、House Open Hat、Trap Hat Roll 与 Dubstep Tom Fill
+- 六套分流派 Kick / Snare 处理与六个独立 CC0 闭镲采样，并为 House / Trap / Melodic 配置不同开镲
+- 分流派 Hat 网格、House Offbeat Open Hat、Trap Hat Roll、Riddim Triplet Fill 与 Dubstep Tom Fill
+- Drum / Bass / Harmony / Lead / FX 五总线动态混音与 Kick Sidechain
+- 双振荡器 Mix / Detune、Amp Attack / Release、Filter Envelope 与可选 LFO Shape / Destination
 - Arp / Pluck / Screech 配器、Crash、Reverse Swell 与多段转场
 - AnalyserNode 实时波形和频谱
 - 无框架、无 CDN、无外部运行时依赖

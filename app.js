@@ -40,9 +40,11 @@
       },
       bassMacros: { body: 50, growl: 50, wobble: 50, space: 50 },
       synthParams: {
-        waveform: 'distorted', filterType: 'lowpass',
+        waveform: 'distorted', oscB: 'sawtooth', oscMix: 45, detune: 12,
+        filterType: 'lowpass', filterEnv: 60,
         sub: 60, fm: 50, cutoff: 1400, resonance: 8,
-        drive: 55, rate: 2, depth: 55, space: 40
+        drive: 55, attack: 5, release: 110,
+        rate: 2, depth: 55, lfoShape: 'sine', lfoTarget: 'filter', space: 40
       },
       groove: { density: 1, fillPreference: 1 },
       performance: { events: [], completed: false },
@@ -190,8 +192,14 @@
       var param = knob.dataset.synthParam;
       setKnobVisual(knob, STATE.synthParams[param]);
     });
-    var filter = document.getElementById('filterType');
-    if (filter) filter.value = STATE.synthParams.filterType;
+    var selectorMap = {
+      filterType: 'filterType', oscBType: 'oscB',
+      lfoShape: 'lfoShape', lfoTarget: 'lfoTarget'
+    };
+    Object.keys(selectorMap).forEach(function (id) {
+      var selector = document.getElementById(id);
+      if (selector) selector.value = STATE.synthParams[selectorMap[id]];
+    });
     updateWaveformSelection();
     drawSynthWaveform();
     checkMacroAdjusted();
@@ -201,7 +209,9 @@
     var preset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[STATE.choices.bassPersonality];
     var hint = document.getElementById('macroHint');
     if (!preset || !hint) return;
-    var params = ['waveform', 'filterType', 'sub', 'fm', 'cutoff', 'resonance', 'drive', 'rate', 'depth', 'space'];
+    var params = ['waveform', 'oscB', 'oscMix', 'detune', 'filterType', 'filterEnv',
+      'sub', 'fm', 'cutoff', 'resonance', 'drive', 'attack', 'release',
+      'rate', 'depth', 'lfoShape', 'lfoTarget', 'space'];
     var adjusted = params.some(function (param) {
       return STATE.synthParams[param] !== preset[param];
     });
@@ -212,13 +222,20 @@
   function setupMacroListeners() {
     document.querySelectorAll('.synth-knob[data-synth-param]').forEach(setupKnobInteraction);
 
-    var filter = document.getElementById('filterType');
-    if (filter) {
-      filter.addEventListener('change', function () {
-        STATE.synthParams.filterType = filter.value;
+    var selectors = [
+      { id: 'filterType', param: 'filterType' },
+      { id: 'oscBType', param: 'oscB' },
+      { id: 'lfoShape', param: 'lfoShape' },
+      { id: 'lfoTarget', param: 'lfoTarget' }
+    ];
+    selectors.forEach(function (item) {
+      var selector = document.getElementById(item.id);
+      if (selector) selector.addEventListener('change', function () {
+        STATE.synthParams[item.param] = selector.value;
+        updateMacroUI();
         synthParamChanged();
       });
-    }
+    });
   }
 
   function setupKnobInteraction(knob) {
@@ -293,9 +310,12 @@
   function syncLegacyMacrosFromSynth() {
     var s = STATE.synthParams;
     STATE.bassMacros.body = Math.round(s.sub);
-    STATE.bassMacros.growl = Math.round(Math.min(100, s.fm * 0.35 + s.drive * 0.45 + (s.resonance / 20) * 20));
-    STATE.bassMacros.wobble = Math.round(Math.min(100, s.depth * 0.78 + (s.rate / 4) * 22));
-    STATE.bassMacros.space = Math.round(s.space);
+    STATE.bassMacros.growl = Math.round(Math.min(100,
+      s.fm * 0.28 + s.drive * 0.34 + (s.resonance / 20) * 18 + s.filterEnv * 0.20));
+    STATE.bassMacros.wobble = Math.round(Math.min(100,
+      s.depth * 0.76 + (s.rate / 4) * 16 + (s.detune / 36) * 8));
+    var releaseSpace = Math.max(0, Math.min(1, (s.release - 30) / 470));
+    STATE.bassMacros.space = Math.round(Math.min(100, s.space * 0.90 + releaseSpace * 10));
   }
 
   function setKnobVisual(knob, value) {
@@ -313,6 +333,8 @@
   function formatSynthValue(param, value) {
     if (param === 'cutoff') return value >= 1000 ? (value / 1000).toFixed(value >= 3000 ? 1 : 2) + ' kHz' : Math.round(value) + ' Hz';
     if (param === 'resonance') return Number(value).toFixed(1) + ' Q';
+    if (param === 'detune') return Math.round(value) + ' ct';
+    if (param === 'attack' || param === 'release') return Math.round(value) + ' ms';
     if (param === 'rate') return ['1/2', '1/4', '1/8', '1/8T', '1/16'][Math.round(value)] || '1/8';
     return Math.round(value) + '%';
   }
@@ -354,6 +376,25 @@
     context.clearRect(0, 0, width, height);
     context.strokeStyle = 'rgba(0,255,204,0.16)';
     context.beginPath(); context.moveTo(0, height / 2); context.lineTo(width, height / 2); context.stroke();
+    var oscB = STATE.synthParams.oscB || 'sawtooth';
+    var mix = Math.max(0, Math.min(1, (STATE.synthParams.oscMix == null ? 45 : STATE.synthParams.oscMix) / 100));
+    var gainA = Math.cos(mix * Math.PI / 2);
+    var gainB = Math.sin(mix * Math.PI / 2);
+    function oscBSample(phase) {
+      if (oscB === 'sine') return Math.sin(phase * Math.PI * 2);
+      if (oscB === 'triangle') return 1 - 4 * Math.abs(Math.round(phase) - phase);
+      if (oscB === 'square') return phase < 0.5 ? 1 : -1;
+      return 2 * phase - 1;
+    }
+    context.strokeStyle = 'rgba(142,125,255,0.42)';
+    context.lineWidth = 1;
+    context.beginPath();
+    for (var b = 0; b < samples.length; b++) {
+      var bx = b / (samples.length - 1) * width;
+      var by = height / 2 - oscBSample(b / (samples.length - 1)) * height * 0.28;
+      if (b === 0) context.moveTo(bx, by); else context.lineTo(bx, by);
+    }
+    context.stroke();
     context.strokeStyle = '#00ffcc';
     context.lineWidth = 2;
     context.shadowColor = '#00ffcc';
@@ -361,7 +402,8 @@
     context.beginPath();
     for (var i = 0; i < samples.length; i++) {
       var x = i / (samples.length - 1) * width;
-      var y = height / 2 - samples[i] * height * 0.4;
+      var combined = samples[i] * gainA + oscBSample(i / (samples.length - 1)) * gainB;
+      var y = height / 2 - combined * height * 0.31;
       if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
     }
     context.stroke();
@@ -864,7 +906,9 @@
   function hasMacroAdjusted() {
     var preset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[STATE.choices.bassPersonality];
     if (!preset) return false;
-    return ['waveform', 'filterType', 'sub', 'fm', 'cutoff', 'resonance', 'drive', 'rate', 'depth', 'space']
+    return ['waveform', 'oscB', 'oscMix', 'detune', 'filterType', 'filterEnv',
+      'sub', 'fm', 'cutoff', 'resonance', 'drive', 'attack', 'release',
+      'rate', 'depth', 'lfoShape', 'lfoTarget', 'space']
       .some(function (param) { return STATE.synthParams[param] !== preset[param]; });
   }
 

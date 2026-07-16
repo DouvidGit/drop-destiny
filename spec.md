@@ -59,7 +59,7 @@
 | 旋律 Melodic | 调音 bass，有音高走向，可哼唱 | Harmony +30, Movement +10, Aggression −15 |
 | 机械 Mechanical | 精准量化，金属质感，冰冷节拍 | Rhythm +20, Aggression +10, Movement +5, Harmony −10 |
 
-选择核心性格后显示一个简化 Bass 合成器。预设只决定默认值，用户必须至少亲手调整其中一个真实参数：Wavetable、Filter Type、Sub、FM、Cutoff、Resonance、Drive、同步 Rate、Depth 或 Space。
+选择核心性格后显示一个简化 Bass 合成器。预设只决定默认值，用户必须至少亲手调整其中一个真实参数：Wavetable、Osc B、Osc Mix、Detune、Filter Type / Envelope、Sub、FM、Cutoff、Resonance、Drive、Amp Attack / Release、同步 LFO Rate / Depth / Shape / Destination 或 Space。
 
 | 宏观控制 | 听觉含义 | 建议底层映射 |
 |----------|---------|-------------|

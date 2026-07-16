@@ -465,6 +465,12 @@ footer {
   min-width: 132px;
 }
 
+.synth-selectors {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(104px, 1fr));
+  gap: 8px;
+}
+
 .filter-selector label {
   color: var(--text-dim);
   font-size: 0.62rem;
@@ -527,8 +533,32 @@ footer {
 
 .macro-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(92px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 18px 12px;
+}
+
+.synth-param-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.synth-param-group {
+  padding: 12px;
+  border: 1px solid rgba(142,125,255,0.16);
+  border-radius: 9px;
+  background: rgba(7,7,16,0.55);
+}
+
+.synth-param-group h4 {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font: 0.62rem var(--font-mono);
+  letter-spacing: 0.16em;
+}
+
+.synth-param-group-compact .macro-grid {
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  max-width: 520px;
 }
 
 .macro-control {
@@ -984,6 +1014,8 @@ footer {
     grid-template-columns: repeat(4, minmax(70px, 1fr));
   }
 
+  .synth-selectors { grid-template-columns: repeat(2, minmax(110px, 1fr)); width: 100%; }
+
   .wavetable-rack { grid-template-columns: 1fr; }
 
   .synth-knob { width: 58px; height: 58px; flex-basis: 58px; }
@@ -1074,6 +1106,7 @@ footer {
   .synth-header { flex-direction: column; }
   .filter-selector { width: 100%; }
   .macro-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
+  .synth-param-group-compact .macro-grid { grid-template-columns: repeat(3, minmax(72px, 1fr)); }
   .waveform-options { grid-template-columns: 1fr; }
 }
 

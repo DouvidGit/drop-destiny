@@ -26,7 +26,15 @@ files so the experience remains self-contained when opened from `file://`.
 | tearout_kick.wav | bl31gt0 | https://freesound.org/s/559234/ |
 | Dubstep Snare #2 - Beefy | mrbossosity | https://freesound.org/s/774955/ |
 | Brostep - Wide Punchy Snare | Hybrid_V | https://freesound.org/s/319613/ |
-| MoCaSG_CH01.mp3 | suspiciononline | https://freesound.org/s/49064/ |
+| Sabian fake 1 | Logicogonist | https://freesound.org/s/810397/ |
+| [Drums] hat 0 | waveplaySFX | https://freesound.org/s/197237/ |
+| FD808A HiHat closed.wav | Uberproduktion | https://freesound.org/s/455639/ |
+| Hi-Hat Closed Hit - Clean | TheEndOfACycle | https://freesound.org/s/674296/ |
+| Dry Hat.wav | CrushedLoops | https://freesound.org/s/626906/ |
+| Closed Hi Hat.wav | karolist | https://freesound.org/s/378377/ |
+| SwarajiwaTH Open Hihat.wav | jack126guy | https://freesound.org/s/371696/ |
+| Hi Hat Open to Closed Soft Hit Sticks.wav | captain k man | https://freesound.org/s/125039/ |
+| FD808A HiHat open.wav | Uberproduktion | https://freesound.org/s/455638/ |
 | Fat clap | deleted_user_2906614 | https://freesound.org/s/239906/ |
 | DSGNImpt_Deep Cinematic Impact 4_ZAZZ | zazz.sound.design | https://freesound.org/s/754423/ |
 | riser_05_140bpm | vekoN | https://freesound.org/s/719845/ |
