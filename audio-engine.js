@@ -114,7 +114,9 @@
   // ── 最终歌曲播放状态 ───────────────────────────────
   var isFinalSongPlaying = false;
   var finalSongNodes = [];    // 跟踪所有一次性节点
+  var finalSongStartTime = 0;
   var finalSongEndTime = 0;
+  var finalSongDuration = 0;
   var finalSongCompleteCb = null;
   var finalSongTimerId = null;
   var finalSongState = null;
@@ -2266,6 +2268,8 @@
     if (masterGain) smoothSet(masterGain.gain, muted ? 0 : 0.70, 0.025, t0);
     scheduleUserBassOverBacking(state, genre, t0);
 
+    finalSongStartTime = t0;
+    finalSongDuration = buffer.duration;
     finalSongEndTime = t0 + buffer.duration;
     if (finalSongTimerId) clearTimeout(finalSongTimerId);
     finalSongTimerId = setTimeout(function () {
@@ -2952,7 +2956,9 @@
     // 恢复在 stopFinalSong 和自然结束时进行
 
     var totalDur = dropEnd - t0;
+    finalSongStartTime = t0;
     finalSongEndTime = dropEnd;
+    finalSongDuration = Math.max(0.001, dropEnd - t0);
 
     // 自然结束：静音并恢复持久参数
     if (finalSongTimerId) clearTimeout(finalSongTimerId);
@@ -2989,6 +2995,9 @@
     finalBackingSource = null;
     finalBackingGain = null;
     finalBackingGenre = null;
+    finalSongStartTime = 0;
+    finalSongEndTime = 0;
+    finalSongDuration = 0;
 
     // 取消持久参数的自动化事件并安全淡出 + 恢复正常参数
     silenceAndRestoreParams(finalSongState);
@@ -3003,7 +3012,22 @@
     if (!ctx || !isFinalSongPlaying) return null;
     var remaining = finalSongEndTime - ctx.currentTime;
     if (remaining < 0) return { playing: false };
-    return { playing: true, remaining: remaining };
+    var elapsed = Math.max(0, ctx.currentTime - finalSongStartTime);
+    var duration = Math.max(0.001, finalSongDuration || (finalSongEndTime - finalSongStartTime));
+    var progress = Math.max(0, Math.min(1, elapsed / duration));
+    var section = progress < 0.13 ? 'intro' :
+      progress < 0.35 ? 'build' :
+      progress < 0.40 ? 'predrop' :
+      progress < 0.67 ? 'dropA' :
+      progress < 0.92 ? 'dropB' : 'outro';
+    return {
+      playing: true,
+      elapsed: elapsed,
+      remaining: remaining,
+      duration: duration,
+      progress: progress,
+      section: section
+    };
   }
 
   function stop() {

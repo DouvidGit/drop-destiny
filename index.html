@@ -25,22 +25,54 @@
       </button>
     </header>
 
-    <!-- ── Music Workbench（跨阶段持续显示）────────── -->
-    <div id="workbench" class="workbench" style="display:none">
-      <button id="wbPlayPause" class="wb-play-btn" title="播放/暂停" aria-label="播放暂停">
-        <span class="wb-icon-play">▶</span>
-        <span class="wb-icon-pause">⏸</span>
-      </button>
-      <div class="wb-info">
-        <span class="wb-bpm" id="wbBpm">--- BPM</span>
-        <span class="wb-sep">·</span>
-        <span class="wb-position" id="wbPosition">1.1</span>
-      </div>
-      <canvas id="wbCanvas" class="wb-canvas"></canvas>
-    </div>
+    <div class="studio-shell" id="studioShell">
+      <!-- ── Audio-reactive visual stage（跨阶段持续显示）── -->
+      <section id="workbench" class="workbench visual-stage" style="display:none" aria-label="实时音频可视化舞台">
+        <canvas id="wbCanvas" class="wb-canvas" role="img" aria-label="随音乐实时变化的频谱、波形与生成视觉"></canvas>
+        <div class="visual-scanlines" aria-hidden="true"></div>
+        <div class="visual-hud">
+          <div class="visual-hud-top">
+            <div class="visual-readout">
+              <span class="visual-kicker">AUDIO REACTIVE / LIVE</span>
+              <strong id="visualSceneLabel">DESTINY SIGNAL</strong>
+            </div>
+            <div class="visual-stage-state">
+              <span class="visual-live-dot" aria-hidden="true"></span>
+              <span id="visualSectionLabel">CREATION LOOP</span>
+            </div>
+          </div>
 
-    <!-- ── Main ──────────────────────────────── -->
-    <main id="main">
+          <div class="visual-reticle" aria-hidden="true"><span></span></div>
+
+          <div class="visual-hud-bottom">
+            <div class="visual-transport">
+              <button id="wbPlayPause" class="wb-play-btn" title="播放/暂停" aria-label="播放暂停">
+                <span class="wb-icon-play">▶</span>
+                <span class="wb-icon-pause">⏸</span>
+              </button>
+              <div class="wb-info">
+                <span class="wb-bpm" id="wbBpm">--- BPM</span>
+                <span class="wb-sep">·</span>
+                <span class="wb-position" id="wbPosition">1.1</span>
+              </div>
+            </div>
+
+            <div class="visual-meters" aria-label="实时频段能量">
+              <div class="visual-meter"><span>LOW</span><i><b id="visualBassMeter"></b></i></div>
+              <div class="visual-meter"><span>MID</span><i><b id="visualMidMeter"></b></i></div>
+              <div class="visual-meter"><span>AIR</span><i><b id="visualTrebleMeter"></b></i></div>
+            </div>
+
+            <div class="visual-actions">
+              <button id="visualModeBtn" class="visual-action-btn" type="button" title="切换视觉模式">AUTO</button>
+              <button id="visualFullscreenBtn" class="visual-action-btn visual-fullscreen-btn" type="button" title="全屏可视化" aria-label="全屏可视化">⛶</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Main creation controls ─────────────────── -->
+      <main id="main">
 
       <!-- Intro -->
       <section id="intro" class="phase-section active">
@@ -190,7 +222,8 @@
         </div>
       </section>
 
-    </main>
+      </main>
+    </div>
 
     <!-- ── Footer: DNA Bars ──────────────────── -->
     <footer id="footer" style="display:none">

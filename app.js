@@ -74,6 +74,13 @@
     dom.wbBpm = document.getElementById('wbBpm');
     dom.wbPosition = document.getElementById('wbPosition');
     dom.wbCanvas = document.getElementById('wbCanvas');
+    dom.visualSceneLabel = document.getElementById('visualSceneLabel');
+    dom.visualSectionLabel = document.getElementById('visualSectionLabel');
+    dom.visualBassMeter = document.getElementById('visualBassMeter');
+    dom.visualMidMeter = document.getElementById('visualMidMeter');
+    dom.visualTrebleMeter = document.getElementById('visualTrebleMeter');
+    dom.visualModeBtn = document.getElementById('visualModeBtn');
+    dom.visualFullscreenBtn = document.getElementById('visualFullscreenBtn');
     dom.sections = {};
     PHASES.forEach(function (p) {
       dom.sections[p] = document.getElementById(p);
@@ -535,6 +542,7 @@
     }
     // 预览声音
     AE.previewChoice('drop', pad);
+    if (VIZ.pulsePad) VIZ.pulsePad(pad, step);
     updatePatternGrid();
     recomputeDerivedState();
     updateNextButton();
@@ -656,23 +664,51 @@
   // ── Music Workbench ────────────────────────────────
 
   var wbRafId = null;
+  var visualStarted = false;
+  var visualHudTick = 0;
 
   function showWorkbench() {
-    if (dom.workbench) dom.workbench.style.display = 'flex';
+    if (dom.app) dom.app.classList.add('visual-active');
+    if (dom.workbench) dom.workbench.style.display = 'grid';
     // 连接可视化到真实 Analyser
     var an = AE.getAnalyser();
     if (an && dom.wbCanvas) {
       VIZ.setAnalyser(an);
-      VIZ.start(dom.wbCanvas, an);
+      if (!visualStarted) {
+        VIZ.start(dom.wbCanvas, an);
+        visualStarted = true;
+      }
     }
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
     // 启动位置更新（确保只有一个 RAF）
     if (!wbRafId) updateWorkbenchDisplay();
   }
 
   function hideWorkbench() {
     if (dom.workbench) dom.workbench.style.display = 'none';
+    if (dom.app) dom.app.classList.remove('visual-active');
     if (wbRafId) { cancelAnimationFrame(wbRafId); wbRafId = null; }
     VIZ.stop();
+    visualStarted = false;
+  }
+
+  function getFinalVisualSection(progress) {
+    if (progress < 0.13) return 'intro';
+    if (progress < 0.35) return 'build';
+    if (progress < 0.40) return 'predrop';
+    if (progress < 0.67) return 'dropA';
+    if (progress < 0.92) return 'dropB';
+    return 'outro';
+  }
+
+  function updateVisualHud() {
+    if (!VIZ.getMetrics) return;
+    var visual = VIZ.getMetrics();
+    if (dom.visualSceneLabel) dom.visualSceneLabel.textContent = visual.sceneLabel || 'DESTINY SIGNAL';
+    if (dom.visualSectionLabel) dom.visualSectionLabel.textContent = visual.sectionLabel || 'CREATION LOOP';
+    if (dom.visualBassMeter) dom.visualBassMeter.style.width = Math.round(Math.min(1, visual.bass * 1.9) * 100) + '%';
+    if (dom.visualMidMeter) dom.visualMidMeter.style.width = Math.round(Math.min(1, visual.mid * 2.2) * 100) + '%';
+    if (dom.visualTrebleMeter) dom.visualTrebleMeter.style.width = Math.round(Math.min(1, visual.treble * 2.8) * 100) + '%';
   }
 
   function updateWorkbenchDisplay() {
@@ -680,13 +716,18 @@
     var isFinalPlaying = AE.getIsFinalSongPlaying ? AE.getIsFinalSongPlaying() : false;
 
     if (isFinalPlaying) {
-      if (dom.wbBpm) dom.wbBpm.textContent = getBpm() + ' BPM';
-      if (dom.wbPosition) dom.wbPosition.textContent = 'PLAYING';
+      var finalPosition = AE.getFinalSongPosition ? AE.getFinalSongPosition() : null;
+      var finalProgress = finalPosition && typeof finalPosition.progress === 'number' ? finalPosition.progress : 0;
+      var finalSection = finalPosition && finalPosition.section ? finalPosition.section : getFinalVisualSection(finalProgress);
+      if (VIZ.setPlayback) VIZ.setPlayback({ isFinal: true, progress: finalProgress, section: finalSection });
+      if (dom.wbBpm) dom.wbBpm.textContent = (AE.getBpm ? AE.getBpm() : getBpm()) + ' BPM';
+      if (dom.wbPosition) dom.wbPosition.textContent = Math.round(finalProgress * 100) + '%';
       if (dom.wbPlayPause) {
         dom.wbPlayPause.classList.add('playing');
         dom.wbPlayPause.disabled = true;
       }
     } else {
+      if (VIZ.setPlayback) VIZ.setPlayback({ isFinal: false, progress: 0, section: 'creation' });
       var bpm = AE.getBpm ? AE.getBpm() : null;
       if (bpm && dom.wbBpm) dom.wbBpm.textContent = bpm + ' BPM';
 
@@ -703,6 +744,9 @@
         dom.wbPlayPause.classList.toggle('playing', playing);
       }
     }
+
+    visualHudTick = (visualHudTick + 1) % 4;
+    if (visualHudTick === 0) updateVisualHud();
 
     wbRafId = requestAnimationFrame(updateWorkbenchDisplay);
   }
@@ -727,6 +771,38 @@
         togglePlayPause();
       });
     }
+
+    if (dom.visualModeBtn) {
+      dom.visualModeBtn.addEventListener('click', function () {
+        var mode = VIZ.cycleMode ? VIZ.cycleMode() : 'auto';
+        dom.visualModeBtn.textContent = String(mode || 'auto').toUpperCase();
+      });
+    }
+
+    if (dom.visualFullscreenBtn && dom.workbench) {
+      dom.visualFullscreenBtn.addEventListener('click', function () {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else if (dom.workbench.requestFullscreen) {
+          dom.workbench.requestFullscreen();
+        }
+      });
+
+      var cursorTimer = null;
+      dom.workbench.addEventListener('mousemove', function () {
+        dom.workbench.classList.remove('cursor-hidden');
+        if (cursorTimer) clearTimeout(cursorTimer);
+        if (document.fullscreenElement === dom.workbench) {
+          cursorTimer = setTimeout(function () {
+            dom.workbench.classList.add('cursor-hidden');
+          }, 1800);
+        }
+      });
+      document.addEventListener('fullscreenchange', function () {
+        if (document.fullscreenElement !== dom.workbench) dom.workbench.classList.remove('cursor-hidden');
+        setTimeout(function () { VIZ.resize(); }, 60);
+      });
+    }
   }
 
   function goToPhase(phase) {
@@ -739,6 +815,10 @@
     if (dom.sections[phase]) {
       dom.sections[phase].classList.add('active');
     }
+
+    if (phase === 'intro') hideWorkbench();
+    else showWorkbench();
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
 
     // Footer 显示控制
     dom.footer.style.display = (phase === 'intro') ? 'none' : 'block';
@@ -865,6 +945,8 @@
     VIZ.setTheme('default');
     VIZ.setIntensity(0.5);
     VIZ.setAnalyser(null);
+    if (VIZ.setPlayback) VIZ.setPlayback({ isFinal: false, progress: 0, section: 'creation' });
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
   }
 
   // ── 导航按钮状态 ──────────────────────────────────
@@ -926,6 +1008,7 @@
     DNA_AXES.forEach(function (a) { avg += STATE.dna[a]; });
     avg /= DNA_AXES.length;
     VIZ.setIntensity(avg / 100);
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
   }
 
   // ── DNA 条渲染 ────────────────────────────────────
@@ -961,6 +1044,7 @@
   function renderResult() {
     STATE.result = SE.evaluate(STATE);
     var r = STATE.result;
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
     if (AE.preloadEnding) AE.preloadEnding(r.primaryStyle);
     var html = '';
 

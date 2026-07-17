@@ -10,7 +10,7 @@
 2. 双击 `index.html`。
 3. 点击“开始创作”后开启声音。
 
-建议使用最新版 Chrome，并佩戴耳机体验低频与实时可视化。
+建议使用最新版 Chrome，并佩戴耳机体验低频与实时可视化。创作界面左侧为主视觉舞台；`AUTO` 可循环切换 Scope / Tunnel / Kaleido 手动模式，`⛶` 可进入全屏。
 
 ## 创作流程
 
@@ -36,7 +36,11 @@
 - Drum / Bass / Harmony / Lead / FX 五总线动态混音与 Kick Sidechain
 - 双振荡器 Mix / Detune、Amp Attack / Release、Filter Envelope 与可选 LFO Shape / Destination
 - Arp / Pluck / Screech 配器、Crash、Reverse Swell 与多段转场
-- AnalyserNode 实时波形和频谱
+- AnalyserNode 对数频段、波形 RMS、Attack / Release 平滑与自适应 Beat Detection
+- 原生 Canvas 2D 反馈拖影、确定性粒子流场、频谱几何与 Retina DPR 适配
+- Sound World、Bass Forge、Groove、Arrangement、Live Drop 分阶段视觉算法
+- Riddim / Brostep / Hybrid Trap / Bass House / Melodic Dubstep / Destiny Fusion 六套结局视觉
+- 最终歌曲 Intro / Build / Pre-drop / Drop A / Drop B / Outro 实时场景切换
 - 无框架、无 CDN、无外部运行时依赖
 
 开发用风格分布测试位于 `dev/style-engine-test.html`。
