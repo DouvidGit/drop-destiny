@@ -1,11 +1,13 @@
 const os = require('os');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const depsRoot = process.env.DROP_DESTINY_NATIVE_RENDERER_NODE_MODULES ||
   path.join(os.tmpdir(), 'drop-destiny-native-renderer', 'node_modules');
 const puppeteer = require(path.join(depsRoot, 'puppeteer-core'));
 const chromePath = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const url = process.env.DROP_DESTINY_TEST_URL || 'http://127.0.0.1:8765/index.html';
+const root = path.resolve(__dirname, '..');
+const url = process.env.DROP_DESTINY_TEST_URL || pathToFileURL(path.join(root, 'index.html')).href;
 
 async function main() {
   const browser = await puppeteer.launch({
@@ -34,19 +36,8 @@ async function main() {
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
 
     const result = await page.evaluate(async () => {
-      const backingUrls = [
-        'assets/endings/riddim-dubstep-backing.wav',
-        'assets/endings/brostep-backing.wav',
-        'assets/endings/hybrid-trap-backing.wav',
-        'assets/endings/bass-house-backing.wav',
-        'assets/endings/melodic-dubstep-backing.wav',
-        'assets/endings/destiny-fusion-backing.wav'
-      ];
-      const sizes = await Promise.all(backingUrls.map(async value => {
-        const response = await fetch(value);
-        if (!response.ok) throw new Error(`${value}: HTTP ${response.status}`);
-        return (await response.arrayBuffer()).byteLength;
-      }));
+      const embedded = window.DropDestinyEndingAssets || {};
+      const sizes = Object.keys(embedded).sort().map(key => embedded[key].base64.length);
 
       function makeState(genre, cutoff, waveform, performanceEvents) {
         return {
@@ -105,7 +96,9 @@ async function main() {
     });
 
     if (errors.length) throw new Error(`Browser errors:\n${errors.join('\n')}`);
-    if (result.sizes.some(size => size < 1000000)) throw new Error(`Backing asset too small: ${result.sizes}`);
+    if (result.sizes.length !== 6 || result.sizes.some(size => size < 500000)) {
+      throw new Error(`Embedded backing asset missing or too small: ${result.sizes}`);
+    }
     if (!result.melodicStarted || result.melodicDebug.finalMode !== 'collider-backing+user-bass') {
       throw new Error(`Melodic did not use Collider backing: ${JSON.stringify(result.melodicDebug)}`);
     }

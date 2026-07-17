@@ -79,8 +79,10 @@ for (const src of scripts) {
 }
 const waveIndex = scripts.indexOf('wavetables.js');
 const assetIndex = scripts.indexOf('audio-assets.js');
+const endingAssetIndex = scripts.indexOf('ending-assets.js');
 const engineIndex = scripts.indexOf('audio-engine.js');
-if (waveIndex < 0 || assetIndex < 0 || engineIndex < 0 || waveIndex > engineIndex || assetIndex > engineIndex) {
+if (waveIndex < 0 || assetIndex < 0 || endingAssetIndex < 0 || engineIndex < 0 ||
+    waveIndex > engineIndex || assetIndex > engineIndex || endingAssetIndex > engineIndex) {
   fail('Audio data scripts must load before audio-engine.js');
 }
 

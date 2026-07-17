@@ -430,15 +430,24 @@
   }
 
   function loadEndingBacking(genre) {
-    if (!ctx || !ENDING_BACKINGS[genre] || typeof global.fetch !== 'function') {
+    if (!ctx || !ENDING_BACKINGS[genre]) {
       return Promise.reject(new Error('Collider backing playback is unavailable'));
     }
     if (endingBackingCache[genre]) return endingBackingCache[genre];
     var spec = ENDING_BACKINGS[genre];
-    endingBackingCache[genre] = global.fetch(spec.url).then(function (response) {
-      if (!response.ok && response.status !== 0) throw new Error('Unable to load ' + spec.url);
-      return response.arrayBuffer();
-    }).then(function (data) {
+    var embedded = global.DropDestinyEndingAssets && global.DropDestinyEndingAssets[genre];
+    var dataPromise;
+    if (embedded && embedded.base64) {
+      dataPromise = Promise.resolve(decodeBase64(embedded.base64));
+    } else if (typeof global.fetch === 'function') {
+      dataPromise = global.fetch(spec.url).then(function (response) {
+        if (!response.ok && response.status !== 0) throw new Error('Unable to load ' + spec.url);
+        return response.arrayBuffer();
+      });
+    } else {
+      dataPromise = Promise.reject(new Error('No embedded ending asset and fetch is unavailable'));
+    }
+    endingBackingCache[genre] = dataPromise.then(function (data) {
       return ctx.decodeAudioData(data.slice(0));
     }).catch(function (error) {
       delete endingBackingCache[genre];
@@ -2291,8 +2300,9 @@
       playLegacyFinalSong(state, completeCb);
       return Promise.resolve(true);
     }
-    if (!ENDING_BACKINGS[genre] || typeof global.fetch !== 'function') {
-      lastFinalSongError = 'Collider 伴奏加载不可用。请通过本地 HTTP 服务或部署后的网址打开页面。';
+    var hasEmbedded = !!(global.DropDestinyEndingAssets && global.DropDestinyEndingAssets[genre]);
+    if (!ENDING_BACKINGS[genre] || (!hasEmbedded && typeof global.fetch !== 'function')) {
+      lastFinalSongError = 'Collider 伴奏资源缺失，请确认 ZIP 中包含 ending-assets.js。';
       return Promise.resolve(false);
     }
 
@@ -2303,7 +2313,7 @@
       return startColliderBackingSong(state, completeCb, genre, buffer, token);
     }).catch(function (error) {
       if (token !== finalSongLoadToken) return false;
-      lastFinalSongError = '无法加载新的结局伴奏。请不要直接双击 index.html；请通过 http://localhost 地址打开。';
+      lastFinalSongError = '无法解码新的结局伴奏，请确认 ending-assets.js 完整且未损坏。';
       if (global.console && global.console.error) global.console.error(error);
       return false;
     });
