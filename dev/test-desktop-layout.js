@@ -116,6 +116,8 @@ async function runViewport(browser, viewport) {
     reports.push(await inspect(page, 'soundWorld'));
     if (viewport.width === 1440 && viewport.height === 768) {
       const hoverCard = '#soundWorldOptions .option-card[data-choice="abyss"]';
+      const lastBorder = await page.$eval('#soundWorldOptions .option-card:last-child', card => getComputedStyle(card).borderRightWidth);
+      if (lastBorder !== '0px') throw new Error(`1440x768 soundWorld: final option is still closed (${lastBorder})`);
       await page.hover(hoverCard);
       await new Promise(resolve => setTimeout(resolve, 200));
       const hoverState = await page.$eval(hoverCard, card => ({
@@ -139,6 +141,29 @@ async function runViewport(browser, viewport) {
     await page.click('#bassCore [data-next]');
     await page.click('#rhythmOptions .option-card[data-choice="halfTime"]');
     reports.push(await inspect(page, 'rhythm'));
+    if (viewport.width === 1440 && viewport.height === 768) {
+      const densityButton = '.rhythm-page-density .density-btn[data-density="0"]';
+      await page.hover(densityButton);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const densityHover = await page.$eval(densityButton, button => ({
+        scale: new DOMMatrix(getComputedStyle(button, '::before').transform).a,
+        textColor: getComputedStyle(button.querySelector('span')).color
+      }));
+      if (densityHover.scale < 0.98 || densityHover.textColor !== 'rgb(255, 255, 255)') {
+        throw new Error(`1440x768 rhythm: density hover sweep failed ${JSON.stringify(densityHover)}`);
+      }
+      await page.mouse.move(12, 12);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const densityLeaveScale = await page.$eval(densityButton, button => new DOMMatrix(getComputedStyle(button, '::before').transform).a);
+      if (densityLeaveScale > 0.02) throw new Error('1440x768 rhythm: density hover did not retract');
+      const activeDensity = await page.$eval('.rhythm-page-density .density-btn.active', button => ({
+        background: getComputedStyle(button).backgroundColor,
+        textColor: getComputedStyle(button.querySelector('span')).color
+      }));
+      if (activeDensity.background !== 'rgb(0, 0, 0)' || activeDensity.textColor !== 'rgb(234, 0, 41)') {
+        throw new Error(`1440x768 rhythm: active density style changed ${JSON.stringify(activeDensity)}`);
+      }
+    }
 
     await page.click('#rhythm [data-next]');
     await page.focus('#synthDrive');

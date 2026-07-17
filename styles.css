@@ -2718,6 +2718,56 @@ header { position: relative; }
 .option-card:not(.selected):hover .opt-desc { color: #fff; }
 .option-card.selected::after { z-index: 2; }
 
+/* Keep every multiple-choice strip visually open at both outer edges. */
+#app.visual-active .option-grid > .option-card:last-child,
+.option-grid > .option-card:last-child {
+  border-right: 0 !important;
+}
+
+/* Density uses the same left-to-right hover wipe as the main choices. */
+.rhythm-page-density .density-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #000;
+  background: transparent;
+  border-color: #000;
+}
+.rhythm-page-density .density-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 170ms cubic-bezier(0.72, 0, 0.28, 1);
+  pointer-events: none;
+}
+.rhythm-page-density .density-btn > span {
+  position: relative;
+  z-index: 1;
+  color: inherit;
+  transition: color 95ms linear;
+}
+.rhythm-page-density .density-btn:not(.active):hover {
+  color: #fff;
+  background: transparent;
+}
+.rhythm-page-density .density-btn:not(.active):hover > span {
+  color: #fff;
+}
+.rhythm-page-density .density-btn:not(.active):hover::before {
+  transform: scaleX(1);
+}
+.rhythm-page-density .density-btn.active {
+  color: #EA0029;
+  background: #000;
+}
+.rhythm-page-density .density-btn.active::before {
+  display: none;
+}
+
 @media (min-width: 769px) {
   #intro { cursor: pointer; }
   #app[data-phase="intro"] .studio-shell,
