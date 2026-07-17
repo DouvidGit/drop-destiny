@@ -34,16 +34,32 @@ async function main() {
       if (message.type() === 'error' && !message.text().includes('Failed to load resource')) errors.push(message.text());
     });
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.mouse.move(260, 330);
-    await page.mouse.move(430, 370, { steps: 3 });
-    await new Promise(resolve => setTimeout(resolve, 70));
+    await new Promise(resolve => setTimeout(resolve, 120));
+    await page.evaluate(() => {
+      const rect = document.getElementById('intro').getBoundingClientRect();
+      document.dispatchEvent(new PointerEvent('pointermove', {
+        clientX: rect.left + rect.width * 0.68,
+        clientY: rect.bottom - 110,
+        movementX: 18,
+        movementY: -7,
+        bubbles: true
+      }));
+    });
+    await new Promise(resolve => setTimeout(resolve, 24));
     const introGlitchPixels = await page.$eval('#introCanvas', canvas => {
       const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
       let count = 0;
-      for (let i = 3; i < data.length; i += 256) if (data[i] > 0) count++;
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) count++;
       return count;
     });
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-intro.png'), fullPage: false });
+    await new Promise(resolve => setTimeout(resolve, 70));
+    const introGlitchResidualPixels = await page.$eval('#introCanvas', canvas => {
+      const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      let count = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) count++;
+      return count;
+    });
     await page.click('#startBtn');
     await page.waitForSelector('#workbench', { visible: true });
     await page.click('#soundWorldOptions .option-card[data-choice="neonCity"]');
@@ -85,8 +101,15 @@ async function main() {
       const main = document.getElementById('main');
       const macro = document.getElementById('macroPanel').getBoundingClientRect();
       const stage = document.getElementById('workbench').getBoundingClientRect();
+      const header = document.querySelector('#bassForge .synth-header').getBoundingClientRect();
+      const rack = document.querySelector('#bassForge .wavetable-rack').getBoundingClientRect();
+      const consoleBody = document.querySelector('#bassForge .synth-console-body').getBoundingClientRect();
       return {
         macroVisible: macro.height > 0,
+        macro: { top: macro.top, bottom: macro.bottom, height: macro.height },
+        header: { top: header.top, bottom: header.bottom, height: header.height },
+        rack: { top: rack.top, bottom: rack.bottom, height: rack.height },
+        consoleBody: { top: consoleBody.top, bottom: consoleBody.bottom, height: consoleBody.height },
         mainOverflow: main.scrollWidth - main.clientWidth,
         knobCount: document.querySelectorAll('.synth-knob').length,
         sceneLabel: document.getElementById('visualSceneLabel').textContent,
@@ -202,8 +225,13 @@ async function main() {
 
     if (errors.length) throw new Error(errors.join('\n'));
     if (introGlitchPixels < 1) throw new Error('Intro pointer glitch did not render.');
+    if (introGlitchResidualPixels > 0) throw new Error('Intro pointer glitch left a visible trail.');
     if (!creation.appActive || creation.stage.width <= creation.main.width || creation.stage.width / creation.stage.height < 2) throw new Error('Desktop cinema visual stage failed.');
-    if (!bassForge.macroVisible || bassForge.mainOverflow > 1 || bassForge.knobCount < 10 || !bassForge.nextEnabled || !bassForge.docked || Math.abs(bassForge.stageRatio - 1) > 0.08) throw new Error('Bass Forge synthesizer layout failed.');
+    if (!bassForge.macroVisible || bassForge.mainOverflow > 1 || bassForge.knobCount < 10 || !bassForge.nextEnabled || !bassForge.docked ||
+        Math.abs(bassForge.stageRatio - 1) > 0.08 || bassForge.header.top < bassForge.macro.top - 1 ||
+        bassForge.rack.top < bassForge.header.bottom - 1 || bassForge.consoleBody.bottom > bassForge.macro.bottom + 1) {
+      throw new Error('Bass Forge synthesizer layout failed.');
+    }
     if (bassForge.driveVisual < 0.78 || !/BURN|MELTDOWN/.test(bassForge.driveLabel)) throw new Error('Drive did not reach the visual heat system.');
     if (!simplifiedFlow.resultActive || simplifiedFlow.progressDots !== 4 || simplifiedFlow.removedStages !== 0) throw new Error('Simplified Bass-first flow failed.');
     if (creation.bodyOverflow > 1 || mobile.horizontalOverflow > 1) throw new Error('Layout has horizontal overflow.');
@@ -215,7 +243,7 @@ async function main() {
     if (modeAfterClick !== 'SHRED') throw new Error('Manual visual mode did not cycle.');
 
     console.log('VISUALIZER_QA_OK');
-    console.log(JSON.stringify({ introGlitchPixels, creation, bassForge, simplifiedFlow, finalStarted, final, styleScenes, modeAfterClick, mobile }, null, 2));
+    console.log(JSON.stringify({ introGlitchPixels, introGlitchResidualPixels, creation, bassForge, simplifiedFlow, finalStarted, final, styleScenes, modeAfterClick, mobile }, null, 2));
   } finally {
     await browser.close();
   }

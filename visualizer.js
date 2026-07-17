@@ -806,39 +806,8 @@
     var drive = clamp(Number(experience.synth.drive == null ? 50 : experience.synth.drive) / 100, 0, 1);
     var audioHit = clamp(smooth.bass * 0.8 + smooth.rms * 1.4 + beatPulse * 0.7, 0, 1.5);
     var damage = clamp(drive * 0.72 + audioHit * 0.42, 0, 1.4);
-    var words = {
-      world: 'SIGNAL', synth: 'DRIVE', rhythm: 'STOMP', build: 'TENSION', vacuum: 'ZERO',
-      riddimDubstep: 'MONOLITH', brostep: 'IMPACT', hybridTrap: 'FRACTURE',
-      bassHouse: 'PRESSURE', melodicDubstep: 'SAW WALL', destinyFusion: 'DESTINY',
-      shred: 'SHRED', bunker: 'BUNKER', fracture: 'BREAK'
-    };
-
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
-
-    // Hard black slabs and industrial-yellow registration marks.
-    ctx.fillStyle = alphaColor('#000000', 0.42 + drive * 0.18);
-    ctx.fillRect(0, h * 0.13, w * (0.045 + drive * 0.035), h * 0.54);
-    ctx.fillRect(w * (0.88 - drive * 0.04), h * 0.74, w * 0.16, h * 0.055);
-    ctx.fillStyle = alphaColor(drive > 0.84 ? '#FFCE00' : '#FFFFFF', 0.34 + audioHit * 0.18);
-    ctx.fillRect(0, h * 0.12, w * (0.13 + drive * 0.08), 5 + drive * 8);
-    ctx.fillRect(w * 0.82, h * 0.71, w * 0.18, 3 + drive * 6);
-
-    // Torn diagonal bars grow denser with Drive.
-    var slashCount = 3 + Math.round(drive * 10);
-    ctx.translate(w / 2, h / 2);
-    ctx.rotate(-0.36 + Math.sin(time * 0.00013) * 0.025 * damage);
-    for (var slash = 0; slash < slashCount; slash++) {
-      var phase = (slash / slashCount + time * (0.000018 + drive * 0.000025)) % 1;
-      var y = -h * 0.62 + phase * h * 1.24;
-      var barWidth = w * (0.09 + ((slash * 37) % 9) * 0.012 + damage * 0.035);
-      var barHeight = 2 + drive * 7 + (slash % 3) * 2;
-      ctx.fillStyle = alphaColor(slash % 3 === 0 ? '#000000' : slash % 2 ? palette.a : palette.b,
-        0.055 + damage * 0.12);
-      ctx.fillRect(-barWidth / 2 + Math.sin(slash * 4.1 + time * 0.0007) * w * 0.34, y, barWidth, barHeight);
-    }
-    ctx.rotate(0.36 - Math.sin(time * 0.00013) * 0.025 * damage);
-    ctx.translate(-w / 2, -h / 2);
 
     // Feedback slices mimic damaged print registration rather than smooth neon trails.
     if (!reducedMotion && drive > 0.38) {
@@ -852,18 +821,6 @@
       }
       ctx.globalAlpha = 1;
     }
-
-    // Oversized brutalist wordmark appears as a structural layer, not an HUD label.
-    var word = words[scene] || 'BASS';
-    ctx.save();
-    ctx.translate(w * 0.5, h * 0.54);
-    ctx.rotate(-Math.PI / 2);
-    ctx.font = '900 ' + Math.max(44, Math.min(150, h * 0.17)) + 'px Arial Black, Impact, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = alphaColor('#FFFFFF', 0.018 + damage * 0.055);
-    ctx.fillText(word, 0, 0);
-    ctx.restore();
 
     // Halftone impact field, tied to mid/high energy and Drive.
     ctx.fillStyle = alphaColor(palette.c, 0.025 + damage * 0.055);

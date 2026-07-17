@@ -2182,3 +2182,465 @@ footer { background-color: #EA0029; }
 @media (prefers-reduced-motion: reduce) {
   #intro .bg-canvas { display: none; }
 }
+
+/* Desktop single-screen pass — fewer frames, clearer hierarchy. */
+.result-signature {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 auto 18px;
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+}
+
+.result-trait {
+  display: grid;
+  gap: 3px;
+  padding: 12px 18px;
+  text-align: center;
+}
+
+.result-trait + .result-trait { border-left: 1px solid rgba(0,0,0,0.34); }
+.result-trait span {
+  font: 0.58rem var(--font-mono);
+  letter-spacing: 0.14em;
+  color: rgba(0,0,0,0.58);
+}
+.result-trait strong {
+  color: #000;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+}
+
+@media (min-width: 769px) {
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body { min-height: 0; }
+
+  #app {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    padding: 0 clamp(16px, 2vw, 32px);
+    overflow: hidden;
+  }
+
+  header {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 8px 0;
+  }
+
+  .logo { font-size: 0.92rem; }
+  .mute-btn { padding: 2px 7px; font-size: 1rem; }
+
+  .studio-shell,
+  #app.visual-active .studio-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+  }
+
+  #app.visual-active .studio-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .visual-stage:not(.synth-docked) {
+    flex: 0 0 clamp(200px, 29dvh, 310px);
+    width: min(1360px, 100%);
+    height: clamp(200px, 29dvh, 310px);
+    min-height: 0;
+    max-height: none;
+    align-self: center;
+    aspect-ratio: auto;
+    border-width: 3px;
+  }
+
+  .visual-hud { padding: 12px; }
+  .visual-hud-top { align-items: flex-start; }
+  .visual-readout strong { font-size: 0.76rem; letter-spacing: 0.11em; }
+  .visual-stage-state { font-size: 0.56rem; }
+  .visual-hud-bottom {
+    padding: 0;
+    border: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+  .visual-stage .wb-play-btn { width: 34px; height: 34px; }
+  .visual-stage .wb-info { min-width: 92px; font-size: 0.68rem; }
+  .visual-action-btn { height: 30px; min-width: 44px; padding: 0 8px; }
+
+  #app.visual-active main {
+    flex: 1 1 auto;
+    width: min(1240px, 100%);
+    min-height: 0;
+    max-height: none;
+    margin: 0 auto;
+    padding: 0 0 8px;
+    overflow: hidden;
+  }
+
+  .phase-section.active {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .phase-section:not(#bassForge):not(#result).active {
+    display: grid;
+    grid-template-rows: repeat(4, auto);
+    align-content: center;
+    gap: 9px;
+    width: 100%;
+    max-width: 1120px;
+  }
+
+  .phase-index {
+    width: max-content;
+    margin: 0;
+    padding: 2px 6px;
+    font-size: 0.56rem;
+  }
+
+  .phase-title {
+    margin: 0;
+    font-size: clamp(1.55rem, 2.25vw, 2.25rem);
+    line-height: 0.95;
+  }
+
+  .option-grid,
+  #app.visual-active .option-grid {
+    align-self: start;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    width: 100%;
+    margin: 0;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+  }
+
+  .option-card,
+  #app.visual-active .option-card {
+    min-height: 82px;
+    padding: 11px 14px;
+    border: 0;
+    border-right: 1px solid rgba(0,0,0,0.32);
+  }
+  .option-card:last-child { border-right: 0; }
+  .option-card .opt-label { font-size: 0.92rem; }
+  .option-card .opt-desc {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .rhythm-page-density {
+    grid-template-columns: auto minmax(360px, 1fr);
+    gap: 18px;
+    margin: 0;
+    padding: 7px 0;
+    border-top: 0;
+  }
+  .density-btn { min-height: 32px; padding: 6px 12px; }
+
+  .nav-buttons {
+    min-height: 38px;
+    margin: 0;
+  }
+  .btn-primary,
+  .btn-secondary,
+  .btn-back,
+  .btn-next {
+    min-height: 36px;
+    padding: 7px 18px;
+    font-size: 0.82rem;
+  }
+
+  #app[data-phase="intro"] .studio-shell {
+    display: flex;
+    flex-direction: column;
+  }
+  #app[data-phase="intro"] main {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  #intro.active {
+    height: 100%;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+  }
+  .intro-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    column-gap: clamp(32px, 6vw, 96px);
+    row-gap: 10px;
+    width: min(1320px, 100%);
+    max-width: none;
+    padding: clamp(18px, 3vw, 42px);
+    text-align: left;
+  }
+  .intro-title {
+    grid-column: 1 / -1;
+    margin: 0 0 clamp(14px, 2vh, 26px);
+    font-size: clamp(4rem, 10.2vw, 10rem);
+    line-height: 0.72;
+    white-space: nowrap;
+  }
+  .intro-subtitle {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    margin: 0;
+  }
+  .intro-desc {
+    grid-column: 1;
+    grid-row: 3;
+    max-width: 600px;
+    margin: 0;
+    color: #000;
+    font-size: clamp(0.92rem, 1.25vw, 1.08rem);
+    line-height: 1.35;
+  }
+  .intro-content .btn-start {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    align-self: stretch;
+    min-width: clamp(190px, 17vw, 250px);
+    min-height: 94px;
+    padding: 18px 24px;
+  }
+
+  #bassForge.active {
+    display: grid;
+    grid-template-rows: repeat(4, auto);
+    align-content: start;
+    gap: 5px;
+  }
+
+  #app[data-phase="bassForge"] main { width: min(1540px, 100%); }
+
+  #bassForge .macro-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 7px;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    padding: 10px 12px;
+    overflow: hidden;
+    border: 0;
+  }
+
+  #bassForge .synth-header {
+    display: grid;
+    grid-template-columns: auto minmax(430px, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    margin: 0;
+  }
+  #bassForge .synth-header .synth-selectors {
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: repeat(4, minmax(92px, 1fr));
+    gap: 6px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+  }
+  #bassForge .forge-actions { grid-column: 3; grid-row: 1; }
+  #bassForge .macro-title { margin: 0; font-size: 1rem; }
+  #bassForge .filter-selector { min-width: 0; gap: 2px; }
+  #bassForge .filter-selector label { font-size: 0.52rem; }
+  #bassForge .filter-selector select { height: 30px; padding: 4px 22px 4px 8px; font-size: 0.62rem; }
+  #bassForge .forge-action-btn { min-height: 30px; padding: 6px 9px; font-size: 0.56rem; }
+
+  #app.visual-active #bassForge .wavetable-rack {
+    grid-template-columns: minmax(250px, 0.7fr) minmax(440px, 1.3fr);
+    gap: 8px;
+    min-height: 0;
+    margin: 0;
+    padding: 5px 7px;
+    border: 0;
+  }
+  #bassForge .synth-wave-canvas { height: 52px; }
+  #bassForge .waveform-options { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  #bassForge .waveform-btn { min-height: 24px; padding: 3px 5px; font-size: 0.54rem; }
+
+  .synth-console-body {
+    grid-template-columns: minmax(230px, 0.92fr) minmax(300px, 1.12fr) minmax(250px, 0.98fr);
+    gap: 9px;
+    min-height: 0;
+    height: auto;
+    align-self: stretch;
+  }
+  .synth-console-bank { min-height: 0; gap: 7px; }
+  .synth-console-bank .synth-param-group {
+    min-height: 0;
+    padding: 7px;
+    overflow: hidden;
+    background: transparent;
+  }
+  #bassForge .synth-param-group h4 {
+    margin: 0 0 6px;
+    padding-bottom: 4px;
+    font-size: 0.54rem;
+  }
+  .synth-console-bank .macro-grid { gap: 8px 6px; }
+  .synth-console-right .synth-param-group:first-child .macro-grid {
+    grid-template-columns: repeat(3, minmax(62px, 1fr));
+  }
+  .synth-console-right .synth-param-group:first-child .macro-control:last-child { grid-column: auto; }
+  .synth-console-right .synth-param-group-compact .macro-grid { grid-template-columns: repeat(3, minmax(62px, 1fr)); }
+
+  .macro-control { gap: 3px; }
+  .macro-control label { font-size: 0.62rem; }
+  .synth-knob {
+    width: 52px;
+    height: 52px;
+    flex-basis: 52px;
+    box-shadow: inset 0 0 0 4px #0c0905, 2px 3px 0 #000;
+  }
+  .synth-knob::before { inset: -3px; }
+  .knob-indicator { top: 6px; height: 14px; transform-origin: 50% 20px; }
+  .macro-value { min-height: 1em; font-size: 0.66rem; }
+
+  .drive-stage {
+    grid-template-columns: 1fr 82px;
+    gap: 8px;
+    min-height: 0;
+    margin: 0;
+    padding: 8px 10px;
+  }
+  .drive-stage-copy h4 { margin: 0; font-size: 1rem; }
+  .drive-heat-readout { display: block; margin-top: 5px; }
+  .synth-knob-hero { width: 72px; height: 72px; flex-basis: 72px; }
+  .synth-knob-hero .knob-indicator { top: 8px; height: 19px; transform-origin: 50% 27px; }
+
+  .synth-visual-dock {
+    width: min(100%, clamp(320px, calc(100dvh - 360px), 650px));
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    justify-self: center;
+    align-self: center;
+    border-width: 4px;
+  }
+  .synth-visual-dock::before { display: none; }
+  .synth-docked .visual-hud-top { padding-top: 0; }
+  .synth-docked .visual-readout strong { font-size: 0.58rem; }
+  .synth-docked .visual-hud-bottom { padding: 0; background: none; }
+  .synth-docked .visual-stage-state { display: flex; }
+  .synth-docked .visual-action-btn { height: 26px; }
+
+  #bassForge .macro-hint {
+    min-height: 24px;
+    margin: 0;
+    padding: 4px 7px;
+    font-size: 0.62rem;
+  }
+
+  #result.active {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+  }
+  #resultContent { width: min(980px, 100%); margin: auto auto 0; }
+  .result-style { margin: 0 0 14px; }
+  .result-style .style-label { font: 0.6rem var(--font-mono); letter-spacing: 0.18em; }
+  .result-style .style-name {
+    font: 950 clamp(3.1rem, 6.5vw, 6.2rem)/0.88 Arial Black, Impact, sans-serif;
+    letter-spacing: -0.07em;
+    text-transform: uppercase;
+  }
+  .result-style .style-secondary { margin-top: 7px; font-size: 0.78rem; }
+  .result-style .hidden-badge { border-radius: 0; background: #000; }
+  .result-reaction {
+    margin: 0;
+    padding: 10px 0 0;
+    border: 0;
+    border-top: 2px solid #000;
+    background: transparent;
+    text-align: center;
+  }
+  .result-reaction .reaction-label { color: rgba(0,0,0,0.58); font: 0.56rem var(--font-mono); letter-spacing: 0.14em; }
+  .result-reaction .reaction-text { color: #000; font-size: 0.92rem; font-style: normal; }
+  .result-nav { flex: 0 0 auto; justify-content: center; margin: 0 auto auto; }
+}
+
+@media (min-width: 769px) and (max-height: 820px) {
+  .visual-stage:not(.synth-docked) {
+    flex-basis: clamp(180px, 27dvh, 220px);
+    height: clamp(180px, 27dvh, 220px);
+  }
+  .option-card,
+  #app.visual-active .option-card { min-height: 70px; padding: 8px 12px; }
+  .option-card .opt-desc { font-size: 0.68rem; -webkit-line-clamp: 1; }
+  .rhythm-page-density { padding: 4px 0; }
+  #bassForge .macro-panel { gap: 5px; padding: 7px 9px; }
+  #bassForge .synth-wave-canvas { height: 44px; }
+  #bassForge .waveform-btn { min-height: 20px; }
+  .synth-console-bank { gap: 5px; }
+  .synth-console-bank .synth-param-group { padding: 5px; }
+  #bassForge .synth-param-group h4 { margin-bottom: 4px; }
+  .synth-knob { width: 46px; height: 46px; flex-basis: 46px; }
+  .knob-indicator { top: 5px; height: 12px; transform-origin: 50% 18px; }
+  .synth-knob-hero { width: 64px; height: 64px; flex-basis: 64px; }
+  .synth-knob-hero .knob-indicator { top: 7px; height: 17px; transform-origin: 50% 24px; }
+  .drive-stage { grid-template-columns: 1fr 72px; padding: 6px 8px; }
+  .result-style .style-name { font-size: clamp(2.8rem, 6vw, 5rem); }
+}
+
+@media (max-width: 768px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  #app {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+  .studio-shell,
+  #app.visual-active .studio-shell,
+  #app.visual-active main { overflow: visible; }
+  .result-signature { grid-template-columns: 1fr; }
+  .result-trait + .result-trait { border-left: 0; border-top: 1px solid rgba(0,0,0,0.34); }
+}
+
+@media (min-width: 769px) {
+  #app[data-phase="soundWorld"] .visual-stage:not(.synth-docked),
+  #app[data-phase="bassCore"] .visual-stage:not(.synth-docked),
+  #app[data-phase="rhythm"] .visual-stage:not(.synth-docked) {
+    flex-basis: clamp(320px, 46dvh, 470px);
+    height: clamp(320px, 46dvh, 470px);
+  }
+
+}
+
+@media (min-width: 769px) and (max-height: 820px) {
+  #app[data-phase="soundWorld"] .visual-stage:not(.synth-docked),
+  #app[data-phase="bassCore"] .visual-stage:not(.synth-docked),
+  #app[data-phase="rhythm"] .visual-stage:not(.synth-docked) {
+    flex-basis: clamp(320px, 45dvh, 360px);
+    height: clamp(320px, 45dvh, 360px);
+  }
+}

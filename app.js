@@ -61,11 +61,8 @@
     dom.app = document.getElementById('app');
     dom.studioShell = document.getElementById('studioShell');
     dom.main = document.getElementById('main');
-    dom.footer = document.getElementById('footer');
     dom.progressDots = document.getElementById('progressDots');
     dom.muteBtn = document.getElementById('muteBtn');
-    dom.dnaBars = document.getElementById('dnaBars');
-    dom.phaseLabel = document.getElementById('phaseLabel');
     dom.introCanvas = document.getElementById('introCanvas');
     dom.startBtn = document.getElementById('startBtn');
     dom.resultContent = document.getElementById('resultContent');
@@ -77,13 +74,9 @@
     dom.wbCanvas = document.getElementById('wbCanvas');
     dom.visualSceneLabel = document.getElementById('visualSceneLabel');
     dom.visualSectionLabel = document.getElementById('visualSectionLabel');
-    dom.visualBassMeter = document.getElementById('visualBassMeter');
-    dom.visualMidMeter = document.getElementById('visualMidMeter');
-    dom.visualTrebleMeter = document.getElementById('visualTrebleMeter');
     dom.visualModeBtn = document.getElementById('visualModeBtn');
     dom.visualFullscreenBtn = document.getElementById('visualFullscreenBtn');
     dom.driveStage = document.getElementById('driveStage');
-    dom.driveHeatFill = document.getElementById('driveHeatFill');
     dom.driveHeatLabel = document.getElementById('driveHeatLabel');
     dom.auditionBass = document.getElementById('auditionBass');
     dom.resetBass = document.getElementById('resetBass');
@@ -215,7 +208,6 @@
   function updateDriveHeatUI() {
     var drive = Math.max(0, Math.min(100, Number(STATE.synthParams.drive) || 0));
     var label = drive < 24 ? 'CLEAN CUT' : drive < 48 ? 'GRIT' : drive < 72 ? 'CRUSH' : drive < 90 ? 'BURN' : 'MELTDOWN';
-    if (dom.driveHeatFill) dom.driveHeatFill.style.width = drive + '%';
     if (dom.driveHeatLabel) dom.driveHeatLabel.textContent = label;
     if (dom.driveStage) {
       dom.driveStage.dataset.heat = drive < 34 ? 'low' : drive < 70 ? 'mid' : 'high';
@@ -525,9 +517,6 @@
     var visual = VIZ.getMetrics();
     if (dom.visualSceneLabel) dom.visualSceneLabel.textContent = visual.sceneLabel || 'DESTINY SIGNAL';
     if (dom.visualSectionLabel) dom.visualSectionLabel.textContent = visual.sectionLabel || 'CREATION LOOP';
-    if (dom.visualBassMeter) dom.visualBassMeter.style.width = Math.round(Math.min(1, visual.bass * 1.9) * 100) + '%';
-    if (dom.visualMidMeter) dom.visualMidMeter.style.width = Math.round(Math.min(1, visual.mid * 2.2) * 100) + '%';
-    if (dom.visualTrebleMeter) dom.visualTrebleMeter.style.width = Math.round(Math.min(1, visual.treble * 2.8) * 100) + '%';
   }
 
   function updateWorkbenchDisplay() {
@@ -654,24 +643,12 @@
     if (dom.app && phase !== 'result') dom.app.removeAttribute('data-ending-style');
     if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
 
-    // Footer 显示控制
-    dom.footer.style.display = (phase === 'intro') ? 'none' : 'block';
-
     // 进度点
     updateProgressDots();
 
-    // 阶段标签
-    var labels = {
-      soundWorld: '阶段 1/4 · 声音世界',
-      bassCore: '阶段 2/4 · Bass Core',
-      rhythm: '阶段 3/4 · Rhythm Chassis',
-      bassForge: '阶段 4/4 · Bass Forge',
-      result: '结算'
-    };
-    dom.phaseLabel.textContent = labels[phase] || '';
-
     // 滚动到顶部
     window.scrollTo(0, 0);
+    if (dom.main) dom.main.scrollTop = 0;
 
     // 结果页特殊处理
     if (phase === 'result') {
@@ -821,7 +798,6 @@
   function recomputeDerivedState() {
     syncBassDrivenSongChoices();
     STATE.dna = SE.computeDna(STATE);
-    renderDNABars();
 
     // 实时更新正在播放的 Loop 参数（平滑更新，不重建 AudioContext）
     AE.applyState(STATE);
@@ -832,34 +808,6 @@
     avg /= DNA_AXES.length;
     VIZ.setIntensity(avg / 100);
     if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
-  }
-
-  // ── DNA 条渲染 ────────────────────────────────────
-
-  function renderDNABars() {
-    if (!dom.dnaBars) return;
-    dom.dnaBars.innerHTML = '';
-    DNA_AXES.forEach(function (axis) {
-      var bar = document.createElement('div');
-      bar.className = 'dna-bar';
-      var name = document.createElement('div');
-      name.className = 'dna-name';
-      name.textContent = DNA_LABELS[axis];
-      var track = document.createElement('div');
-      track.className = 'dna-track';
-      var fill = document.createElement('div');
-      fill.className = 'dna-fill';
-      fill.style.width = STATE.dna[axis] + '%';
-      fill.style.background = DNA_COLORS[axis];
-      track.appendChild(fill);
-      var val = document.createElement('div');
-      val.className = 'dna-val';
-      val.textContent = Math.round(STATE.dna[axis]);
-      bar.appendChild(name);
-      bar.appendChild(track);
-      bar.appendChild(val);
-      dom.dnaBars.appendChild(bar);
-    });
   }
 
   // ── 结算页渲染 ────────────────────────────────────
@@ -878,30 +826,31 @@
     var secondaryLabel = D.STYLE_PROFILES[r.secondaryStyle] ? D.STYLE_PROFILES[r.secondaryStyle].label : r.secondaryStyle;
 
     html += '<div class="result-style">';
-    html += '<div class="style-label">你的风格</div>';
+    html += '<div class="style-label">FINAL OUTPUT</div>';
     html += '<div class="style-name">' + escapeHtml(primaryLabel) + '</div>';
     if (!r.isHidden) {
       html += '<div class="style-secondary">with ' + escapeHtml(secondaryLabel) + ' influence</div>';
     } else {
-      html += '<div class="hidden-badge">⚡ HIDDEN ENDING UNLOCKED</div>';
+      html += '<div class="hidden-badge">HIDDEN ENDING</div>';
     }
     html += '</div>';
 
-    // DNA 雷达图 + 得分
-    html += '<div class="result-body">';
-    html += '<div class="result-radar">';
-    html += '<h4 style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px;">DNA 雷达图</h4>';
-    html += renderRadarSVG(r.dna, r.primaryStyle);
-    html += '</div>';
-    html += '<div class="result-scores">';
-    html += '<h4>风格得分</h4>';
-    html += renderScoreBars(r);
-    html += '</div>';
+    var resultTraits = [
+      { label: 'STRUCTURE', key: 'structure' },
+      { label: 'MOTION', key: 'variation' },
+      { label: 'IMPACT', key: 'drop' }
+    ];
+    html += '<div class="result-signature">';
+    resultTraits.forEach(function (trait) {
+      var value = STATE.choices[trait.key];
+      var option = D.CHOICES[trait.key] && D.CHOICES[trait.key][value];
+      html += '<div class="result-trait"><span>' + trait.label + '</span><strong>' + escapeHtml(option ? option.label : value) + '</strong></div>';
+    });
     html += '</div>';
 
     // 观众反应
     html += '<div class="result-reaction">';
-    html += '<div class="reaction-label">观众反应</div>';
+    html += '<div class="reaction-label">CROWD READOUT</div>';
     html += '<div class="reaction-text">' + escapeHtml(r.audienceReaction) + '</div>';
     html += '</div>';
 
@@ -1147,19 +1096,24 @@
     var intro = dom.sections.intro;
     if (!canvas || !intro) return;
     var context = canvas.getContext('2d');
-    var bursts = [];
-    var raf = null;
+    var pendingBurst = null;
+    var drawRaf = null;
+    var clearTimer = null;
     var lastSpawn = 0;
+    var canvasCssWidth = 0;
+    var canvasCssHeight = 0;
     var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     function resizeIntroCanvas() {
       var rect = intro.getBoundingClientRect();
-      var ratio = Math.min(2, window.devicePixelRatio || 1);
+      var ratio = Math.min(3, window.devicePixelRatio || 1);
       canvas.width = Math.max(1, Math.floor(rect.width * ratio));
       canvas.height = Math.max(1, Math.floor(rect.height * ratio));
       canvas.style.width = rect.width + 'px';
       canvas.style.height = rect.height + 'px';
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      canvasCssWidth = rect.width;
+      canvasCssHeight = rect.height;
     }
 
     function seeded(seed) {
@@ -1171,72 +1125,94 @@
     }
 
     function spawn(event) {
-      if (reduced) return;
+      if (reduced || STATE.phase !== 'intro') return;
       var now = performance.now();
-      if (now - lastSpawn < 52) return;
-      lastSpawn = now;
       var rect = intro.getBoundingClientRect();
-      bursts.push({
+      if (Math.abs(rect.width - canvasCssWidth) > 1 || Math.abs(rect.height - canvasCssHeight) > 1) {
+        resizeIntroCanvas();
+        rect = intro.getBoundingClientRect();
+      }
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
+      if (now - lastSpawn < 96) return;
+      lastSpawn = now;
+      var speed = Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0);
+      pendingBurst = {
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
-        life: 1,
         seed: ((event.clientX * 73856093) ^ (event.clientY * 19349663) ^ Math.floor(now)) >>> 0,
-        width: 90 + Math.min(230, Math.abs(event.movementX || 0) * 8 + Math.abs(event.movementY || 0) * 7),
-        amp: 9 + Math.min(32, Math.abs(event.movementX || 0) * 1.6 + Math.abs(event.movementY || 0) * 1.4)
-      });
-      if (bursts.length > 8) bursts.shift();
-      if (!raf) raf = requestAnimationFrame(drawIntroGlitch);
+        width: 84 + Math.min(230, speed * 5.5),
+        amp: 7 + Math.min(30, speed * 0.9)
+      };
+      if (!drawRaf) drawRaf = requestAnimationFrame(drawIntroGlitch);
     }
 
     function drawIntroGlitch() {
-      raf = null;
+      drawRaf = null;
+      if (!pendingBurst) return;
       var rect = intro.getBoundingClientRect();
+      var burst = pendingBurst;
+      pendingBurst = null;
       context.clearRect(0, 0, rect.width, rect.height);
       context.save();
       context.globalCompositeOperation = 'multiply';
+      context.lineCap = 'butt';
+      context.lineJoin = 'miter';
 
-      for (var b = bursts.length - 1; b >= 0; b--) {
-        var burst = bursts[b];
-        var random = seeded(burst.seed);
-        var left = burst.x - burst.width / 2;
-        var segments = 18;
-        context.strokeStyle = 'rgba(85,0,20,' + (burst.life * 0.56).toFixed(3) + ')';
-        context.lineWidth = 2 + burst.life * 2;
+      var random = seeded(burst.seed);
+      var left = burst.x - burst.width / 2;
+      var colors = ['rgba(77,0,14,0.72)', 'rgba(116,0,22,0.48)', 'rgba(35,0,8,0.34)'];
+      for (var layer = 0; layer < 3; layer++) {
+        var segments = 34 + layer * 8;
+        var layerY = burst.y + (layer - 1) * 4;
+        context.strokeStyle = colors[layer];
+        context.lineWidth = 0.85 + layer * 0.7;
+        context.setLineDash(layer === 2 ? [5, 3] : []);
         context.beginPath();
         for (var i = 0; i <= segments; i++) {
           var px = left + i / segments * burst.width;
-          var tooth = (i % 2 ? -1 : 1) * burst.amp * (0.32 + random() * 0.68);
-          var py = burst.y + tooth + (random() - 0.5) * 7;
+          var tooth = (i % 2 ? -1 : 1) * burst.amp * (0.18 + random() * 0.82);
+          var py = Math.round((layerY + tooth + (random() - 0.5) * 3.5) * 2) / 2;
           if (!i) context.moveTo(px, py); else context.lineTo(px, py);
         }
         context.stroke();
+      }
+      context.setLineDash([]);
 
-        context.fillStyle = 'rgba(110,0,24,' + (burst.life * 0.18).toFixed(3) + ')';
-        for (var slice = 0; slice < 5; slice++) {
-          var sw = 12 + random() * burst.width * 0.28;
-          var sx = left + random() * Math.max(1, burst.width - sw);
-          var sy = burst.y + (random() - 0.5) * burst.amp * 2.2;
-          context.fillRect(sx, sy, sw, 2 + random() * 6);
-        }
-
-        burst.life -= 0.075;
-        if (burst.life <= 0) bursts.splice(b, 1);
+      for (var slice = 0; slice < 13; slice++) {
+        var sw = 3 + random() * Math.min(46, burst.width * 0.18);
+        var sx = left + random() * Math.max(1, burst.width - sw);
+        var sy = burst.y + (random() - 0.5) * burst.amp * 2.4;
+        context.fillStyle = slice % 3 === 0 ? 'rgba(44,0,9,0.48)' : 'rgba(104,0,20,0.28)';
+        context.fillRect(Math.round(sx), Math.round(sy), Math.max(1, Math.round(sw)), 1 + Math.floor(random() * 3));
+      }
+      context.fillStyle = 'rgba(72,0,15,0.3)';
+      for (var toothIndex = 0; toothIndex < 9; toothIndex++) {
+        var tx = left + random() * burst.width;
+        var th = 3 + random() * burst.amp * 0.9;
+        context.fillRect(Math.round(tx), Math.round(burst.y - th / 2), 1, Math.round(th));
       }
       context.restore();
-      if (bursts.length) raf = requestAnimationFrame(drawIntroGlitch);
+
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(function () {
+        var currentRect = intro.getBoundingClientRect();
+        context.clearRect(0, 0, currentRect.width, currentRect.height);
+        clearTimer = null;
+      }, 58);
     }
 
-    intro.addEventListener('pointermove', spawn);
-    intro.addEventListener('pointerenter', spawn);
+    document.addEventListener('pointermove', spawn, { passive: true });
+    document.addEventListener('pointerdown', spawn, { passive: true });
     window.addEventListener('resize', resizeIntroCanvas);
     resizeIntroCanvas();
+    requestAnimationFrame(resizeIntroCanvas);
+    setTimeout(resizeIntroCanvas, 80);
   }
 
   // ── 初始化 ────────────────────────────────────────
 
   function init() {
     cacheDom();
-    renderDNABars();
     setupMacroListeners();
     setupForgeActions();
     setupDensityListeners();
