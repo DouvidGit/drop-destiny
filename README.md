@@ -1,6 +1,6 @@
 # DROP//DESTINY
 
-一个引导用户完成 Bass Music 片段的浏览器音乐创作游戏。用户选择声音世界、塑造 Bass 音色、设计 Groove 与编排变化，最后编辑一小节 8-step Pattern，生成约 20–28 秒的 Build-up → Drop 作品与风格结局。
+一个以 Bass 音色塑造为核心的浏览器音乐创作游戏。用户依次选择声音世界、Bass 核心与节奏骨架，然后进入真正的合成器工作台；最终曲风、编排倾向与 Drop 强度由用户的真实合成参数自动推导。
 
 ## 运行
 
@@ -10,15 +10,16 @@
 2. 双击 `index.html`。
 3. 点击“开始创作”后开启声音。
 
-建议使用最新版 Chrome，并佩戴耳机体验低频与实时可视化。创作界面左侧为主视觉舞台；`AUTO` 可循环切换 Scope / Tunnel / Kaleido 手动模式，`⛶` 可进入全屏。
+建议使用最新版 Chrome，并佩戴耳机体验低频与实时可视化。普通步骤使用电影宽银幕视觉，Bass Forge 会把同一块实时画面嵌入合成器中央开窗；`AUTO` 可循环切换 Shred / Bunker / Fracture 手动模式，`⛶` 可进入全屏。
 
 ## 创作流程
 
 1. Sound World：选择声音氛围。
-2. Bass Forge：选择 Bass 性格，在简化双振荡器中调节 Wavetable / Osc B、Mix、Detune、FM、Filter Envelope、Amp Envelope、同步 LFO、Sub 与 Space。
-3. Groove Lab：选择节奏与 Sparse / Balanced / Busy 密度。
-4. Arrangement：决定 Build-up 与 Drop 后半段变化。
-5. Live Drop：选择 Drop 强度并编辑一小节 8-step Sequencer。
+2. Bass Core：选择 Bass 的原始核心性格。
+3. Rhythm Chassis：选择节奏家族与 Sparse / Balanced / Busy 密度。
+4. Bass Forge：在双振荡器中调节 Wavetable / Osc B、Mix、Detune、FM、Drive、Filter Envelope、Amp Envelope、同步 LFO、Sub 与 Space。
+
+Drive 同时控制音频失真与视觉热度；结构、变奏和 Drop 强度不再作为选择题，而由上述参数自动派生。
 
 最终可能生成 Riddim Dubstep、Brostep、Hybrid Trap、Bass House、Melodic Dubstep 或隐藏的 Destiny Fusion 结局。
 
@@ -41,6 +42,7 @@
 - Sound World、Bass Forge、Groove、Arrangement、Live Drop 分阶段视觉算法
 - Riddim / Brostep / Hybrid Trap / Bass House / Melodic Dubstep / Destiny Fusion 六套结局视觉
 - 最终歌曲 Intro / Build / Pre-drop / Drop A / Drop B / Outro 实时场景切换
+- 红黑海报式分页界面、封面鼠标锯齿 Glitch 与 Bass Forge 中央方形视觉开窗
 - 无框架、无 CDN、无外部运行时依赖
 
 开发用风格分布测试位于 `dev/style-engine-test.html`。

@@ -259,6 +259,40 @@
     return Math.min(100, (total / MAX_ANCHORS[styleId]) * 100);
   }
 
+  // ── Bass-driven song choices ──────────────────────
+  // Arrangement / Drop are no longer separate UI stages. Their musical intent is
+  // derived from the user's real synth settings so Bass Forge remains the focus.
+  function deriveBassDrivenChoices(state) {
+    var c = (state && state.choices) || {};
+    var s = (state && state.synthParams) || {};
+    var personality = c.bassPersonality || 'wobbly';
+    var rhythm = c.rhythm || 'halfTime';
+    var drive = Number(s.drive == null ? 50 : s.drive);
+    var fm = Number(s.fm == null ? 50 : s.fm);
+    var depth = Number(s.depth == null ? 50 : s.depth);
+    var space = Number(s.space == null ? 50 : s.space);
+    var detune = Number(s.detune == null ? 12 : s.detune);
+    var cutoff = Number(s.cutoff == null ? 1400 : s.cutoff);
+
+    var structure;
+    if (personality === 'melodic' || (space >= 68 && drive < 74)) structure = 'melodicNarrative';
+    else if (rhythm === 'fourOnFloor' || personality === 'mechanical') structure = 'minimalTech';
+    else if (drive >= 76 || cutoff >= 3600) structure = 'classicDrop';
+    else structure = 'epicJourney';
+
+    var variation;
+    if (personality === 'melodic' || (space >= 65 && detune >= 16)) variation = 'lift';
+    else if (drive >= 66 || fm >= 64 || depth >= 72) variation = 'mutate';
+    else variation = 'repeat';
+
+    var drop;
+    if (drive >= 70 || (fm >= 75 && cutoff >= 2200)) drop = 'overload';
+    else if (drive <= 34 || (space >= 76 && personality === 'melodic')) drop = 'gentle';
+    else drop = 'standard';
+
+    return { structure: structure, variation: variation, drop: drop };
+  }
+
   // ── evaluate：完整风格评分 ─────────────────────────
 
   function evaluate(state) {
@@ -368,6 +402,7 @@
     computePerformanceAnchors: computePerformanceAnchors,
     computeMaxCardAnchor: computeMaxCardAnchor,
     computeMaxPerfAnchor: computeMaxPerfAnchor,
+    deriveBassDrivenChoices: deriveBassDrivenChoices,
     MAX_ANCHORS: MAX_ANCHORS,
     STYLE_IDS: STYLE_IDS
   };

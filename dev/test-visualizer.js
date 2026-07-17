@@ -27,12 +27,23 @@ async function main() {
   const errors = [];
   try {
     const page = await browser.newPage();
+    page.setDefaultTimeout(8000);
     await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
     page.on('pageerror', error => errors.push(error.stack || error.message));
     page.on('console', message => {
       if (message.type() === 'error' && !message.text().includes('Failed to load resource')) errors.push(message.text());
     });
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.mouse.move(260, 330);
+    await page.mouse.move(430, 370, { steps: 3 });
+    await new Promise(resolve => setTimeout(resolve, 70));
+    const introGlitchPixels = await page.$eval('#introCanvas', canvas => {
+      const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      let count = 0;
+      for (let i = 3; i < data.length; i += 256) if (data[i] > 0) count++;
+      return count;
+    });
+    await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-intro.png'), fullPage: false });
     await page.click('#startBtn');
     await page.waitForSelector('#workbench', { visible: true });
     await page.click('#soundWorldOptions .option-card[data-choice="neonCity"]');
@@ -55,20 +66,46 @@ async function main() {
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-creation.png'), fullPage: false });
 
     await page.click('#soundWorld .btn-next');
-    await page.waitForSelector('#bassForge.active');
+    await new Promise(resolve => setTimeout(resolve, 250));
+    await page.waitForSelector('#bassCore.active');
+    await new Promise(resolve => setTimeout(resolve, 380));
+    await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-bass-core.png'), fullPage: false });
     await page.click('#bassPersonalityOptions .option-card[data-choice="wobbly"]');
+    await page.click('#bassCore [data-next]');
+    await page.waitForSelector('#rhythm.active');
+    await new Promise(resolve => setTimeout(resolve, 380));
+    await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-rhythm.png'), fullPage: false });
+    await page.click('#rhythmOptions .option-card[data-choice="halfTime"]');
+    await page.click('#rhythm [data-next]');
+    await page.waitForSelector('#bassForge.active');
+    await page.focus('#synthDrive');
+    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowUp');
     await new Promise(resolve => setTimeout(resolve, 500));
     const bassForge = await page.evaluate(() => {
       const main = document.getElementById('main');
       const macro = document.getElementById('macroPanel').getBoundingClientRect();
+      const stage = document.getElementById('workbench').getBoundingClientRect();
       return {
         macroVisible: macro.height > 0,
         mainOverflow: main.scrollWidth - main.clientWidth,
         knobCount: document.querySelectorAll('.synth-knob').length,
-        sceneLabel: document.getElementById('visualSceneLabel').textContent
+        sceneLabel: document.getElementById('visualSceneLabel').textContent,
+        driveLabel: document.getElementById('driveHeatLabel').textContent,
+        driveVisual: Visualizer.getMetrics().drive,
+        nextEnabled: !document.querySelector('#bassForge [data-next]').disabled,
+        docked: document.getElementById('workbench').parentElement.id === 'synthVisualDock',
+        stageRatio: stage.width / stage.height
       };
     });
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-bass-forge.png'), fullPage: false });
+
+    await page.click('#bassForge [data-next]');
+    await page.waitForSelector('#result.active');
+    const simplifiedFlow = await page.evaluate(() => ({
+      resultActive: document.getElementById('result').classList.contains('active'),
+      progressDots: document.querySelectorAll('#progressDots .dot').length,
+      removedStages: ['groove', 'arrangement', 'liveDrop'].filter(id => document.getElementById(id)).length
+    }));
 
     const finalStarted = await page.evaluate(async () => {
       const state = {
@@ -154,24 +191,31 @@ async function main() {
         main: { width: main.width, top: main.top },
         canvas: { width: canvas.width, height: canvas.height, cssWidth: canvas.getBoundingClientRect().width, cssHeight: canvas.getBoundingClientRect().height },
         metrics: Visualizer.getMetrics(),
-        horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+        horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        overflowElements: Array.from(document.querySelectorAll('body *')).map(node => {
+          const rect = node.getBoundingClientRect();
+          return { tag: node.tagName, id: node.id, cls: node.className, left: rect.left, right: rect.right, width: rect.width };
+        }).filter(item => item.left < -1 || item.right > document.documentElement.clientWidth + 1).slice(0, 12)
       };
     });
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-mobile.png'), fullPage: false });
 
     if (errors.length) throw new Error(errors.join('\n'));
-    if (!creation.appActive || creation.stage.width <= creation.main.width) throw new Error('Desktop visual stage is not the primary region.');
-    if (!bassForge.macroVisible || bassForge.mainOverflow > 1 || bassForge.knobCount < 10) throw new Error('Bass Forge side panel layout failed.');
+    if (introGlitchPixels < 1) throw new Error('Intro pointer glitch did not render.');
+    if (!creation.appActive || creation.stage.width <= creation.main.width || creation.stage.width / creation.stage.height < 2) throw new Error('Desktop cinema visual stage failed.');
+    if (!bassForge.macroVisible || bassForge.mainOverflow > 1 || bassForge.knobCount < 10 || !bassForge.nextEnabled || !bassForge.docked || Math.abs(bassForge.stageRatio - 1) > 0.08) throw new Error('Bass Forge synthesizer layout failed.');
+    if (bassForge.driveVisual < 0.78 || !/BURN|MELTDOWN/.test(bassForge.driveLabel)) throw new Error('Drive did not reach the visual heat system.');
+    if (!simplifiedFlow.resultActive || simplifiedFlow.progressDots !== 4 || simplifiedFlow.removedStages !== 0) throw new Error('Simplified Bass-first flow failed.');
     if (creation.bodyOverflow > 1 || mobile.horizontalOverflow > 1) throw new Error('Layout has horizontal overflow.');
     if (!finalStarted || !/SUPERSAW/.test(final.sceneLabel) || !/DROP B/.test(final.sectionLabel)) {
       throw new Error('Final style/section did not reach the visualizer HUD.');
     }
     if (final.litRatio < 0.04) throw new Error('Canvas appears visually empty.');
     if (new Set(Object.values(styleScenes)).size !== 6) throw new Error('Style visual scenes are not distinct.');
-    if (modeAfterClick !== 'SCOPE') throw new Error('Manual visual mode did not cycle.');
+    if (modeAfterClick !== 'SHRED') throw new Error('Manual visual mode did not cycle.');
 
     console.log('VISUALIZER_QA_OK');
-    console.log(JSON.stringify({ creation, bassForge, finalStarted, final, styleScenes, modeAfterClick, mobile }, null, 2));
+    console.log(JSON.stringify({ introGlitchPixels, creation, bassForge, simplifiedFlow, finalStarted, final, styleScenes, modeAfterClick, mobile }, null, 2));
   } finally {
     await browser.close();
   }

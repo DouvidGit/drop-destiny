@@ -40,6 +40,35 @@ for (const id of SE.STYLE_IDS) {
 const fusionPct = counts.destinyFusion / paths.length * 100;
 if (fusionPct < 1 || fusionPct > 8) fail(`Destiny Fusion distribution out of range: ${fusionPct.toFixed(2)}%`);
 
+// The shipped UI now derives arrangement/drop intent from Bass Forge parameters.
+const simplifiedCounts = Object.fromEntries(SE.STYLE_IDS.concat('destinyFusion').map(id => [id, 0]));
+let simplifiedPaths = 0;
+for (const soundWorld of Object.keys(D.CHOICES.soundWorld)) {
+  for (const bassPersonality of Object.keys(D.CHOICES.bassPersonality)) {
+    for (const rhythm of Object.keys(D.CHOICES.rhythm)) {
+      for (const drive of [18, 48, 82, 96]) {
+        const synthParams = { ...D.SYNTH_PRESETS[bassPersonality], drive };
+        if (drive >= 82) { synthParams.fm = Math.max(synthParams.fm, 76); synthParams.cutoff = Math.max(synthParams.cutoff, 2600); }
+        if (drive <= 18) synthParams.space = Math.max(synthParams.space, 78);
+        const choices = { soundWorld, bassPersonality, rhythm };
+        Object.assign(choices, SE.deriveBassDrivenChoices({ choices, synthParams }));
+        const state = {
+          choices,
+          synthParams,
+          bassMacros: { ...D.BASS_PRESETS[bassPersonality] },
+          groove: { density: 1, fillPreference: 1 },
+          performance: { events: [], completed: true }
+        };
+        simplifiedCounts[SE.evaluate(state).primaryStyle]++;
+        simplifiedPaths++;
+      }
+    }
+  }
+}
+for (const id of SE.STYLE_IDS) {
+  if (!simplifiedCounts[id]) fail(`Simplified Bass-first flow cannot reach ${id}`);
+}
+
 // Every synth preset must be complete and reference an embedded wavetable.
 const synthKeys = ['waveform', 'oscB', 'oscMix', 'detune', 'filterType', 'filterEnv',
   'sub', 'fm', 'cutoff', 'resonance', 'drive', 'attack', 'release',
@@ -87,4 +116,11 @@ if (waveIndex < 0 || assetIndex < 0 || endingAssetIndex < 0 || engineIndex < 0 |
 }
 
 console.log('REGRESSION_OK');
-console.log(JSON.stringify({ paths: paths.length, distribution: counts, fusionPct: Number(fusionPct.toFixed(2)), scripts }, null, 2));
+console.log(JSON.stringify({
+  paths: paths.length,
+  distribution: counts,
+  fusionPct: Number(fusionPct.toFixed(2)),
+  simplifiedPaths,
+  simplifiedDistribution: simplifiedCounts,
+  scripts
+}, null, 2));

@@ -36,7 +36,8 @@
   var theme = 'default';
   var intensity = 0.5;
   var manualModeIndex = 0;
-  var MANUAL_MODES = ['auto', 'scope', 'tunnel', 'kaleido'];
+  var MANUAL_MODES = ['auto', 'shred', 'bunker', 'fracture'];
+  var MODE_LABELS = { auto: 'AUTO', shred: 'SHRED', bunker: 'BUNKER', fracture: 'FRACTURE' };
   var sceneSignature = '';
 
   var experience = {
@@ -61,7 +62,8 @@
     scene: 'intro',
     sceneLabel: 'DESTINY SIGNAL',
     sectionLabel: 'CREATION LOOP',
-    mode: 'auto'
+    mode: 'auto',
+    drive: 0.5
   };
 
   var smooth = { bass: 0, mid: 0, treble: 0, rms: 0 };
@@ -69,20 +71,20 @@
   var padBursts = [];
 
   var THEMES = {
-    abyss:         { bg: '#03030a', a: '#6b16ff', b: '#ff2bd6', c: '#9f85ff' },
-    neonCity:      { bg: '#03080c', a: '#00ffd5', b: '#ff188f', c: '#d7ff36' },
-    organicForest: { bg: '#030a07', a: '#55ff95', b: '#d8ff45', c: '#00caa2' },
-    cosmicVoid:    { bg: '#03030d', a: '#7b66ff', b: '#4de7ff', c: '#df7dff' },
-    default:       { bg: '#05050b', a: '#00ffcc', b: '#ff00aa', c: '#8066ff' }
+    abyss:         { bg: '#030303', a: '#FFFFFF', b: '#A60019', c: '#5B0010' },
+    neonCity:      { bg: '#050505', a: '#F4F4F4', b: '#FF0033', c: '#FFCE00' },
+    organicForest: { bg: '#060303', a: '#EADDD5', b: '#B00020', c: '#6E0615' },
+    cosmicVoid:    { bg: '#010101', a: '#EA0029', b: '#FFFFFF', c: '#606060' },
+    default:       { bg: '#030303', a: '#FFFFFF', b: '#EA0029', c: '#5A0712' }
   };
 
   var STYLE_PALETTES = {
-    riddimDubstep:  { a: '#d7ff38', b: '#6d4bff', c: '#f7f7ff' },
-    brostep:        { a: '#ff315b', b: '#00eaff', c: '#ffcf37' },
-    hybridTrap:     { a: '#ff28bc', b: '#ffbe35', c: '#6e67ff' },
-    bassHouse:      { a: '#58ff6f', b: '#12d9ff', c: '#f4ff52' },
-    melodicDubstep: { a: '#5cf4ff', b: '#ff69d5', c: '#fff1a8' },
-    destinyFusion:  { a: '#00ffcc', b: '#ff2bd6', c: '#ffe54c' }
+    riddimDubstep:  { a: '#FFFFFF', b: '#111111', c: '#EA0029' },
+    brostep:        { a: '#FF0033', b: '#FFFFFF', c: '#720014' },
+    hybridTrap:     { a: '#FFFFFF', b: '#EA0029', c: '#161616' },
+    bassHouse:      { a: '#FFFFFF', b: '#FF153B', c: '#FFCE00' },
+    melodicDubstep: { a: '#F6E7C1', b: '#3E7CB1', c: '#FFCE00' },
+    destinyFusion:  { a: '#FFFFFF', b: '#EA0029', c: '#FFCE00' }
   };
 
   var STYLE_LABELS = {
@@ -133,9 +135,15 @@
     return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
   }
 
+  function parseColor(color) {
+    if ((color || '').indexOf('#') === 0) return hexToRgb(color);
+    var match = String(color || '').match(/\d+/g);
+    return match ? { r: +match[0], g: +match[1], b: +match[2] } : { r: 0, g: 0, b: 0 };
+  }
+
   function colorMix(a, b, amount) {
-    var ca = hexToRgb(a);
-    var cb = hexToRgb(b);
+    var ca = parseColor(a);
+    var cb = parseColor(b);
     return 'rgb(' + Math.round(lerp(ca.r, cb.r, amount)) + ',' +
       Math.round(lerp(ca.g, cb.g, amount)) + ',' + Math.round(lerp(ca.b, cb.b, amount)) + ')';
   }
@@ -164,12 +172,18 @@
   function getPalette() {
     var world = THEMES[theme] || THEMES.default;
     var style = STYLE_PALETTES[resolveStyle()];
-    if (!style) return world;
-    return {
+    var drive = clamp(Number(experience.synth.drive == null ? 50 : experience.synth.drive) / 100, 0, 1);
+    var base = style ? {
       bg: world.bg,
       a: colorMix(world.a, style.a, 0.68),
       b: colorMix(world.b, style.b, 0.72),
       c: colorMix(world.c, style.c, 0.62)
+    } : world;
+    return {
+      bg: colorMix(base.bg, '#000000', 0.34 + drive * 0.42),
+      a: colorMix(base.a, '#FFFFFF', drive * 0.18),
+      b: colorMix(base.b, '#FF0033', drive * 0.82),
+      c: colorMix(base.c, '#FFFFFF', drive * 0.68)
     };
   }
 
@@ -309,6 +323,8 @@
       return resolveStyle() || 'kaleido';
     }
     if (experience.phase === 'soundWorld' || experience.phase === 'intro') return 'world';
+    if (experience.phase === 'bassCore') return 'synth';
+    if (experience.phase === 'rhythm') return 'rhythm';
     if (experience.phase === 'bassForge') return 'synth';
     if (experience.phase === 'groove') return 'rhythm';
     if (experience.phase === 'arrangement') return 'structure';
@@ -319,7 +335,8 @@
   function updateSceneMetadata(scene) {
     var style = resolveStyle();
     var phaseLabels = {
-      intro: 'DESTINY SIGNAL', soundWorld: 'WORLD FREQUENCY', bassForge: 'BASS OSCILLOSCOPE',
+      intro: 'DESTINY SIGNAL', soundWorld: 'WORLD FREQUENCY', bassCore: 'CORE MATERIAL',
+      rhythm: 'RHYTHM CHASSIS', bassForge: 'BASS OSCILLOSCOPE',
       groove: 'GROOVE VECTOR GRID', arrangement: 'ARRANGEMENT ORBIT', liveDrop: 'LIVE DROP MATRIX',
       result: style ? STYLE_LABELS[style] : 'DESTINY RESOLUTION'
     };
@@ -328,6 +345,7 @@
       STYLE_LABELS[style] : (phaseLabels[experience.phase] || 'DESTINY SIGNAL');
     metrics.sectionLabel = playback.isFinal ? (SECTION_LABELS[playback.section] || 'SONG / LIVE') : 'CREATION LOOP';
     metrics.mode = MANUAL_MODES[manualModeIndex];
+    metrics.drive = clamp(Number(experience.synth.drive == null ? 50 : experience.synth.drive) / 100, 0, 1);
   }
 
   function drawParticles(ctx, w, h, time, palette, energy, scene) {
@@ -764,7 +782,7 @@
   }
 
   function drawPadBursts(ctx, w, h, palette) {
-    var colors = { D: '#8066ff', F: '#ff3344', J: '#ffcc00', K: '#00ffcc' };
+    var colors = { D: '#FFCE00', F: '#FF3217', J: '#FFFFFF', K: '#D72F19' };
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (var i = padBursts.length - 1; i >= 0; i--) {
@@ -784,14 +802,99 @@
     ctx.restore();
   }
 
+  function drawBrutalOverlay(ctx, w, h, time, palette, scene) {
+    var drive = clamp(Number(experience.synth.drive == null ? 50 : experience.synth.drive) / 100, 0, 1);
+    var audioHit = clamp(smooth.bass * 0.8 + smooth.rms * 1.4 + beatPulse * 0.7, 0, 1.5);
+    var damage = clamp(drive * 0.72 + audioHit * 0.42, 0, 1.4);
+    var words = {
+      world: 'SIGNAL', synth: 'DRIVE', rhythm: 'STOMP', build: 'TENSION', vacuum: 'ZERO',
+      riddimDubstep: 'MONOLITH', brostep: 'IMPACT', hybridTrap: 'FRACTURE',
+      bassHouse: 'PRESSURE', melodicDubstep: 'SAW WALL', destinyFusion: 'DESTINY',
+      shred: 'SHRED', bunker: 'BUNKER', fracture: 'BREAK'
+    };
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Hard black slabs and industrial-yellow registration marks.
+    ctx.fillStyle = alphaColor('#000000', 0.42 + drive * 0.18);
+    ctx.fillRect(0, h * 0.13, w * (0.045 + drive * 0.035), h * 0.54);
+    ctx.fillRect(w * (0.88 - drive * 0.04), h * 0.74, w * 0.16, h * 0.055);
+    ctx.fillStyle = alphaColor(drive > 0.84 ? '#FFCE00' : '#FFFFFF', 0.34 + audioHit * 0.18);
+    ctx.fillRect(0, h * 0.12, w * (0.13 + drive * 0.08), 5 + drive * 8);
+    ctx.fillRect(w * 0.82, h * 0.71, w * 0.18, 3 + drive * 6);
+
+    // Torn diagonal bars grow denser with Drive.
+    var slashCount = 3 + Math.round(drive * 10);
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-0.36 + Math.sin(time * 0.00013) * 0.025 * damage);
+    for (var slash = 0; slash < slashCount; slash++) {
+      var phase = (slash / slashCount + time * (0.000018 + drive * 0.000025)) % 1;
+      var y = -h * 0.62 + phase * h * 1.24;
+      var barWidth = w * (0.09 + ((slash * 37) % 9) * 0.012 + damage * 0.035);
+      var barHeight = 2 + drive * 7 + (slash % 3) * 2;
+      ctx.fillStyle = alphaColor(slash % 3 === 0 ? '#000000' : slash % 2 ? palette.a : palette.b,
+        0.055 + damage * 0.12);
+      ctx.fillRect(-barWidth / 2 + Math.sin(slash * 4.1 + time * 0.0007) * w * 0.34, y, barWidth, barHeight);
+    }
+    ctx.rotate(0.36 - Math.sin(time * 0.00013) * 0.025 * damage);
+    ctx.translate(-w / 2, -h / 2);
+
+    // Feedback slices mimic damaged print registration rather than smooth neon trails.
+    if (!reducedMotion && drive > 0.38) {
+      var slices = 2 + Math.round(drive * 5);
+      ctx.globalAlpha = 0.035 + drive * 0.075;
+      for (var slice = 0; slice < slices; slice++) {
+        var sy = ((slice * 0.173 + time * 0.000043) % 1) * h;
+        var sh = 3 + drive * 13;
+        var offset = Math.sin(time * 0.0021 + slice * 2.7) * (4 + drive * 28);
+        ctx.drawImage(historyCanvas, 0, sy, w, sh, offset, sy, w, sh);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Oversized brutalist wordmark appears as a structural layer, not an HUD label.
+    var word = words[scene] || 'BASS';
+    ctx.save();
+    ctx.translate(w * 0.5, h * 0.54);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = '900 ' + Math.max(44, Math.min(150, h * 0.17)) + 'px Arial Black, Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = alphaColor('#FFFFFF', 0.018 + damage * 0.055);
+    ctx.fillText(word, 0, 0);
+    ctx.restore();
+
+    // Halftone impact field, tied to mid/high energy and Drive.
+    ctx.fillStyle = alphaColor(palette.c, 0.025 + damage * 0.055);
+    var dotGap = drive > 0.72 ? 18 : 25;
+    var dotRadius = 0.6 + smooth.treble * 2.6 + drive * 0.8;
+    for (var dx = dotGap; dx < w; dx += dotGap) {
+      for (var dy = dotGap; dy < h; dy += dotGap) {
+        if (((dx / dotGap + dy / dotGap) % 3) !== 0) continue;
+        ctx.beginPath();
+        ctx.arc(dx, dy, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (drive > 0.82 && beatPulse > 0.3) {
+      ctx.fillStyle = alphaColor('#FFFFFF', beatPulse * (drive - 0.78) * 0.36);
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.restore();
+  }
+
   function renderScene(ctx, w, h, time, scene, palette) {
     var mutate = playback.isFinal && playback.section === 'dropB';
-    if (scene === 'scope') {
+    if (scene === 'shred') {
       drawWaveRibbon(ctx, w, h, palette, 0.24, 7);
-      drawRadialSpectrum(ctx, w, h, time, palette, 0.12, 4);
-    } else if (scene === 'tunnel') {
+      drawBrostep(ctx, w, h, time, palette, true);
+    } else if (scene === 'bunker') {
+      drawRiddim(ctx, w, h, time, palette, true);
       drawBassHouse(ctx, w, h, time, palette, true);
-    } else if (scene === 'kaleido') {
+    } else if (scene === 'fracture') {
+      drawHybrid(ctx, w, h, time, palette, true);
       drawKaleido(ctx, w, h, time, palette, true);
     } else if (scene === 'world') {
       drawWorld(ctx, w, h, time, palette, smooth.rms);
@@ -834,6 +937,7 @@
     var palette = getPalette();
     var w = cssWidth;
     var h = cssHeight;
+    var drive = clamp(Number(experience.synth.drive == null ? 50 : experience.synth.drive) / 100, 0, 1);
     var energy = clamp((smooth.rms * 1.35 + smooth.bass * 0.75) * intensity, 0, 1.4);
     var dropBoost = experience.choices.drop === 'overload' ? 1.24 : experience.choices.drop === 'gentle' ? 0.78 : 1;
     energy *= dropBoost;
@@ -846,8 +950,8 @@
     if (scene !== 'vacuum') {
       frameCtx.save();
       frameCtx.translate(w / 2, h / 2);
-      var zoom = 1.003 + energy * 0.008 + beatPulse * 0.006;
-      var rotation = reducedMotion ? 0 : Math.sin(now * 0.00017) * 0.0025 * (1 + smooth.mid * 2);
+      var zoom = 1.003 + energy * 0.008 + beatPulse * 0.006 + drive * 0.004;
+      var rotation = reducedMotion ? 0 : Math.sin(now * 0.00017) * (0.0025 + drive * 0.006) * (1 + smooth.mid * 2);
       frameCtx.rotate(rotation);
       frameCtx.scale(zoom, zoom);
       frameCtx.translate(-w / 2, -h / 2);
@@ -860,6 +964,7 @@
 
     if (scene !== 'vacuum' && scene !== 'afterglow') drawParticles(frameCtx, w, h, now, palette, energy, scene);
     renderScene(frameCtx, w, h, now, scene, palette);
+    drawBrutalOverlay(frameCtx, w, h, now, palette, scene);
     drawPadBursts(frameCtx, w, h, palette);
 
     if (beatPulse > 0.04 && scene !== 'vacuum') {
@@ -959,7 +1064,7 @@
   function cycleMode() {
     manualModeIndex = (manualModeIndex + 1) % MANUAL_MODES.length;
     transitionFlash = 1;
-    return MANUAL_MODES[manualModeIndex];
+    return MODE_LABELS[MANUAL_MODES[manualModeIndex]];
   }
 
   function getMode() {
@@ -970,7 +1075,7 @@
     return {
       bass: metrics.bass, mid: metrics.mid, treble: metrics.treble, rms: metrics.rms,
       beat: metrics.beat, scene: metrics.scene, sceneLabel: metrics.sceneLabel,
-      sectionLabel: metrics.sectionLabel, mode: metrics.mode
+      sectionLabel: metrics.sectionLabel, mode: metrics.mode, drive: metrics.drive
     };
   }
 
