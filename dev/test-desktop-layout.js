@@ -24,7 +24,7 @@ async function inspect(page, expectedPhase) {
     const active = document.querySelector('.phase-section.active');
     const selectors = [
       '#workbench', '.phase-section.active', '.phase-section.active .nav-buttons',
-      '#intro.active #introCanvas',
+      '#intro.active #introCanvas', '#intro.active .intro-title', '#intro.active .intro-subtitle',
       '#bassForge.active .synth-header', '#bassForge.active .wavetable-rack',
       '#bassForge.active .synth-console-body', '#bassForge.active .macro-hint',
       '#result.active #resultContent'
@@ -37,6 +37,12 @@ async function inspect(page, expectedPhase) {
       if (style.display === 'none' || rect.width === 0 || rect.height === 0) return null;
       return { selector, top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
     }).filter(Boolean);
+    const progress = document.getElementById('progressDots').getBoundingClientRect();
+    const muteStyle = getComputedStyle(document.getElementById('muteBtn'));
+    const title = document.querySelector('.intro-title');
+    const titleStyle = getComputedStyle(title);
+    const titleMeasure = document.createElement('canvas').getContext('2d');
+    titleMeasure.font = titleStyle.font;
     return {
       expected,
       active: active && active.id,
@@ -46,6 +52,18 @@ async function inspect(page, expectedPhase) {
       scrollY,
       mainScrollTop: document.getElementById('main').scrollTop,
       horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      chrome: {
+        logo: document.querySelector('.logo').textContent.trim(),
+        progressOffset: progress.left + progress.width / 2 - innerWidth / 2,
+        muteBackground: muteStyle.backgroundColor,
+        muteColor: muteStyle.color,
+        selectionBackground: getComputedStyle(document.body, '::selection').backgroundColor,
+        startButtonExists: !!document.getElementById('startBtn'),
+        introTitle: document.querySelector('.intro-title').textContent.trim(),
+        introTitleBoxWidth: title.getBoundingClientRect().width,
+        introTitleTextWidth: titleMeasure.measureText(title.textContent.trim()).width,
+        optionNumberCount: document.querySelectorAll('.opt-num').length
+      },
       important
     };
   }, expectedPhase);
@@ -61,6 +79,16 @@ function assertSingleScreen(metrics) {
     throw new Error(`${label}: hidden scroll position detected (${metrics.scrollY}/${metrics.mainScrollTop})`);
   }
   if (metrics.horizontalOverflow > 1) throw new Error(`${label}: horizontal overflow ${metrics.horizontalOverflow}px`);
+  if (metrics.chrome.logo !== 'DROP' || metrics.chrome.introTitle !== 'DROP') throw new Error(`${label}: DROP branding mismatch`);
+  if (metrics.expected === 'intro' && metrics.chrome.introTitleTextWidth > metrics.chrome.introTitleBoxWidth + 1) {
+    throw new Error(`${label}: DROP hero text overflows (${metrics.chrome.introTitleTextWidth}/${metrics.chrome.introTitleBoxWidth})`);
+  }
+  if (Math.abs(metrics.chrome.progressOffset) > 1) throw new Error(`${label}: progress indicator is not centered`);
+  if (metrics.chrome.muteBackground !== 'rgba(0, 0, 0, 0)' || metrics.chrome.muteColor !== 'rgb(0, 0, 0)') {
+    throw new Error(`${label}: mute control is not transparent black`);
+  }
+  if (metrics.chrome.selectionBackground !== 'rgb(255, 206, 0)') throw new Error(`${label}: text selection is not yellow`);
+  if (metrics.chrome.startButtonExists || metrics.chrome.optionNumberCount) throw new Error(`${label}: removed cover/option UI returned`);
   const clipped = metrics.important.filter(item =>
     item.top < -1 || item.bottom > metrics.viewport.height + 1 || item.left < -1 || item.right > metrics.viewport.width + 1
   );
@@ -77,11 +105,31 @@ async function runViewport(browser, viewport) {
 
     const reports = [];
     reports.push(await inspect(page, 'intro'));
-    await page.click('#startBtn');
+    if (viewport.width === 1440 && viewport.height === 768) {
+      await page.screenshot({ path: path.join(exportDir, 'layout-qa-1440x768-intro.png'), fullPage: false });
+    }
+    await page.click('#muteBtn');
+    if (!await page.$eval('#intro', node => node.classList.contains('active'))) throw new Error('Mute click left the intro.');
+    await page.click('#muteBtn');
+    await page.mouse.click(viewport.width / 2, viewport.height / 2);
     await page.click('#soundWorldOptions .option-card[data-choice="neonCity"]');
     reports.push(await inspect(page, 'soundWorld'));
     if (viewport.width === 1440 && viewport.height === 768) {
+      const hoverCard = '#soundWorldOptions .option-card[data-choice="abyss"]';
+      await page.hover(hoverCard);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const hoverState = await page.$eval(hoverCard, card => ({
+        scale: new DOMMatrix(getComputedStyle(card, '::before').transform).a,
+        textColor: getComputedStyle(card.querySelector('.opt-label')).color
+      }));
+      if (hoverState.scale < 0.98 || hoverState.textColor !== 'rgb(255, 255, 255)') {
+        throw new Error(`1440x768 soundWorld: option hover sweep failed ${JSON.stringify(hoverState)}`);
+      }
       await page.screenshot({ path: path.join(exportDir, 'layout-qa-1440x768-sound-world.png'), fullPage: false });
+      await page.mouse.move(12, 12);
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const leaveScale = await page.$eval(hoverCard, card => new DOMMatrix(getComputedStyle(card, '::before').transform).a);
+      if (leaveScale > 0.02) throw new Error(`1440x768 soundWorld: option hover did not retract`);
     }
 
     await page.click('#soundWorld [data-next]');

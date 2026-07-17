@@ -53,14 +53,14 @@ async function main() {
       return count;
     });
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-intro.png'), fullPage: false });
-    await new Promise(resolve => setTimeout(resolve, 70));
+    await new Promise(resolve => setTimeout(resolve, 150));
     const introGlitchResidualPixels = await page.$eval('#introCanvas', canvas => {
       const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
       let count = 0;
       for (let i = 3; i < data.length; i += 4) if (data[i] > 0) count++;
       return count;
     });
-    await page.click('#startBtn');
+    await page.click('#intro');
     await page.waitForSelector('#workbench', { visible: true });
     await page.click('#soundWorldOptions .option-card[data-choice="neonCity"]');
     await new Promise(resolve => setTimeout(resolve, 1200));

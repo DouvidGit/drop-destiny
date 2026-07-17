@@ -64,7 +64,6 @@
     dom.progressDots = document.getElementById('progressDots');
     dom.muteBtn = document.getElementById('muteBtn');
     dom.introCanvas = document.getElementById('introCanvas');
-    dom.startBtn = document.getElementById('startBtn');
     dom.resultContent = document.getElementById('resultContent');
     // Workbench
     dom.workbench = document.getElementById('workbench');
@@ -95,23 +94,19 @@
     container.innerHTML = '';
     var choices = D.CHOICES[choiceKey];
     var keys = Object.keys(choices);
-    keys.forEach(function (key, idx) {
+    keys.forEach(function (key) {
       var opt = choices[key];
       var card = document.createElement('div');
       card.className = 'option-card';
       card.dataset.choice = key;
       card.dataset.phase = choiceKey;
       if (STATE.choices[choiceKey] === key) card.classList.add('selected');
-      var num = document.createElement('span');
-      num.className = 'opt-num';
-      num.textContent = (idx + 1);
       var label = document.createElement('div');
       label.className = 'opt-label';
       label.textContent = opt.label;
       var desc = document.createElement('div');
       desc.className = 'opt-desc';
       desc.textContent = opt.description;
-      card.appendChild(num);
       card.appendChild(label);
       card.appendChild(desc);
       card.addEventListener('click', function () {
@@ -985,6 +980,11 @@
 
       // Enter = 下一步
       if (key === 'enter') {
+        if (STATE.phase === 'intro') {
+          startExperience();
+          e.preventDefault();
+          return;
+        }
         var nextBtn = dom.sections[STATE.phase] && dom.sections[STATE.phase].querySelector('[data-next]');
         if (nextBtn && !nextBtn.disabled) { goNext(); e.preventDefault(); }
         return;
@@ -1015,6 +1015,12 @@
 
   // ── 导航按钮绑定 ──────────────────────────────────
 
+  function startExperience() {
+    if (STATE.phase !== 'intro') return;
+    AE.start(STATE);
+    goToPhase('soundWorld');
+  }
+
   function setupNavButtons() {
     // 通用 next/back
     document.querySelectorAll('[data-next]').forEach(function (btn) {
@@ -1024,11 +1030,12 @@
       btn.addEventListener('click', goBack);
     });
 
-    // Start
-    if (dom.startBtn) {
-      dom.startBtn.addEventListener('click', function () {
-        AE.start(STATE);
-        goToPhase('soundWorld');
+    // Intro: click anywhere except the mute control.
+    if (dom.app) {
+      dom.app.addEventListener('click', function (event) {
+        if (STATE.phase !== 'intro') return;
+        if (event.target.closest && event.target.closest('#muteBtn')) return;
+        startExperience();
       });
     }
 
@@ -1133,7 +1140,7 @@
         rect = intro.getBoundingClientRect();
       }
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
-      if (now - lastSpawn < 96) return;
+      if (now - lastSpawn < 170) return;
       lastSpawn = now;
       var speed = Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0);
       pendingBurst = {
@@ -1198,7 +1205,7 @@
         var currentRect = intro.getBoundingClientRect();
         context.clearRect(0, 0, currentRect.width, currentRect.height);
         clearTimer = null;
-      }, 58);
+      }, 120);
     }
 
     document.addEventListener('pointermove', spawn, { passive: true });
