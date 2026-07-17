@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DROP//DESTINY native audio export</title>
+</head>
+<body data-status="booting">
+  <pre id="status">Booting native Chrome renderer…</pre>
+
+  <script src="../data.js"></script>
+  <script src="../style-engine.js"></script>
+  <script src="../wavetables.js"></script>
+  <script src="../audio-assets.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      var BUILDS = {
+        '01-riddim-dubstep': {
+          genre: 'riddimDubstep', density: 1,
+          choices: { soundWorld: 'abyss', bassPersonality: 'mechanical', rhythm: 'halfTime',
+            structure: 'minimalTech', variation: 'repeat', drop: 'standard' }
+        },
+        '02-brostep': {
+          genre: 'brostep', density: 1,
+          choices: { soundWorld: 'abyss', bassPersonality: 'brutal', rhythm: 'halfTime',
+            structure: 'classicDrop', variation: 'mutate', drop: 'overload' }
+        },
+        '03-hybrid-trap-breakbeat': {
+          genre: 'hybridTrap', density: 1,
+          choices: { soundWorld: 'cosmicVoid', bassPersonality: 'brutal', rhythm: 'breakbeat',
+            structure: 'epicJourney', variation: 'mutate', drop: 'standard' }
+        },
+        '04-bass-house': {
+          genre: 'bassHouse', density: 1,
+          choices: { soundWorld: 'neonCity', bassPersonality: 'mechanical', rhythm: 'fourOnFloor',
+            structure: 'minimalTech', variation: 'repeat', drop: 'standard' }
+        },
+        '05-melodic-dubstep': {
+          genre: 'melodicDubstep', density: 1,
+          choices: { soundWorld: 'organicForest', bassPersonality: 'melodic', rhythm: 'halfTime',
+            structure: 'melodicNarrative', variation: 'lift', drop: 'standard' }
+        },
+        '06-destiny-fusion': {
+          genre: 'destinyFusion', density: 1,
+          choices: { soundWorld: 'cosmicVoid', bassPersonality: 'wobbly', rhythm: 'syncopated',
+            structure: 'epicJourney', variation: 'mutate', drop: 'standard' }
+        }
+      };
+
+      var BPM = { halfTime: 140, fourOnFloor: 124, syncopated: 145, breakbeat: 165 };
+      var params = new URLSearchParams(location.search);
+      var buildId = params.get('build') || '01-riddim-dubstep';
+      var build = BUILDS[buildId];
+      if (!build) throw new Error('Unknown build: ' + buildId);
+
+      var bpm = BPM[build.choices.rhythm] || 140;
+      var duration = 14 * 4 * 60 / bpm + 2.5;
+      var sampleRate = 48000;
+      var frameCount = Math.ceil(duration * sampleRate);
+      var nativeContext = new OfflineAudioContext(2, frameCount, sampleRate);
+      window.__dropDestinyOfflineContext = nativeContext;
+
+      function BoundAudioContext() { return nativeContext; }
+      Object.defineProperty(window, 'AudioContext', { configurable: true, value: BoundAudioContext });
+      Object.defineProperty(window, 'webkitAudioContext', { configurable: true, value: BoundAudioContext });
+
+      var personality = build.choices.bassPersonality;
+      window.__dropDestinyExportState = {
+        choices: Object.assign({}, build.choices),
+        bassMacros: Object.assign({}, DropDestinyData.BASS_PRESETS[personality]),
+        synthParams: Object.assign({}, DropDestinyData.SYNTH_PRESETS[personality]),
+        groove: { density: build.density, fillPreference: 1 },
+        performance: {
+          events: [
+            { step: 0, pad: 'D' }, { step: 3, pad: 'F' },
+            { step: 5, pad: 'K' }, { step: 7, pad: 'J' }
+          ],
+          completed: true
+        },
+        result: { primaryStyle: build.genre, secondaryStyle: null, isHidden: build.genre === 'destinyFusion' }
+      };
+      window.__dropDestinyExportMeta = { buildId: buildId, bpm: bpm, duration: duration, genre: build.genre };
+    })();
+  </script>
+  <script src="../audio-engine.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      function encodeWav(audioBuffer) {
+        var channels = audioBuffer.numberOfChannels;
+        var length = audioBuffer.length;
+        var bytesPerSample = 2;
+        var blockAlign = channels * bytesPerSample;
+        var buffer = new ArrayBuffer(44 + length * blockAlign);
+        var view = new DataView(buffer);
+        var offset = 0;
+
+        function writeString(value) {
+          for (var i = 0; i < value.length; i++) view.setUint8(offset++, value.charCodeAt(i));
+        }
+        function write16(value) { view.setUint16(offset, value, true); offset += 2; }
+        function write32(value) { view.setUint32(offset, value, true); offset += 4; }
+
+        writeString('RIFF');
+        write32(36 + length * blockAlign);
+        writeString('WAVE');
+        writeString('fmt ');
+        write32(16);
+        write16(1);
+        write16(channels);
+        write32(audioBuffer.sampleRate);
+        write32(audioBuffer.sampleRate * blockAlign);
+        write16(blockAlign);
+        write16(bytesPerSample * 8);
+        writeString('data');
+        write32(length * blockAlign);
+
+        var channelData = [];
+        for (var channel = 0; channel < channels; channel++) channelData.push(audioBuffer.getChannelData(channel));
+        for (var frame = 0; frame < length; frame++) {
+          for (var ch = 0; ch < channels; ch++) {
+            var sample = Math.max(-1, Math.min(1, channelData[ch][frame]));
+            view.setInt16(offset, sample < 0 ? sample * 32768 : sample * 32767, true);
+            offset += 2;
+          }
+        }
+        return buffer;
+      }
+
+      function analyse(audioBuffer) {
+        var peak = 0;
+        var sumSquares = 0;
+        var count = 0;
+        for (var channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+          var data = audioBuffer.getChannelData(channel);
+          for (var i = 0; i < data.length; i++) {
+            peak = Math.max(peak, Math.abs(data[i]));
+            sumSquares += data[i] * data[i];
+          }
+          count += data.length;
+        }
+        var rms = Math.sqrt(sumSquares / Math.max(1, count));
+        return {
+          peak: peak,
+          peakDbfs: 20 * Math.log10(Math.max(peak, 1e-9)),
+          rms: rms,
+          rmsDbfs: 20 * Math.log10(Math.max(rms, 1e-9))
+        };
+      }
+
+      async function render() {
+        var status = document.getElementById('status');
+        try {
+          document.body.dataset.status = 'loading-samples';
+          status.textContent = 'Loading embedded samples…';
+          await AudioEngine._prepareOfflineRender(window.__dropDestinyExportState);
+
+          document.body.dataset.status = 'rendering';
+          status.textContent = 'Rendering with Chrome OfflineAudioContext…';
+          AudioEngine.playFinalSong(window.__dropDestinyExportState, function () {});
+          var rendered = await window.__dropDestinyOfflineContext.startRendering();
+          var stats = analyse(rendered);
+          var wav = encodeWav(rendered);
+          var blob = new Blob([wav], { type: 'audio/wav' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = window.__dropDestinyExportMeta.buildId + '.wav';
+          document.body.appendChild(link);
+          link.click();
+
+          window.__dropDestinyExportResult = Object.assign({}, window.__dropDestinyExportMeta, stats);
+          status.textContent = JSON.stringify(window.__dropDestinyExportResult);
+          document.body.dataset.status = 'done';
+        } catch (error) {
+          window.__dropDestinyExportError = error && (error.stack || error.message) || String(error);
+          status.textContent = window.__dropDestinyExportError;
+          document.body.dataset.status = 'error';
+        }
+      }
+
+      render();
+    })();
+  </script>
+</body>
+</html>

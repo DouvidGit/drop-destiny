@@ -85,6 +85,7 @@ class FakeContext {
   createPeriodicWave() { return {}; }
   decodeAudioData() { return Promise.resolve({ duration: 1 }); }
   resume() { this.state = 'running'; return Promise.resolve(); }
+  startRendering() { return Promise.resolve(this.createBuffer(2, this.sampleRate)); }
 }
 
 const window = {

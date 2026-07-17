@@ -1126,3 +1126,13 @@ footer {
     display: none;
   }
 }
+.final-song-error {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 78, 126, 0.55);
+  border-radius: 8px;
+  background: rgba(255, 46, 105, 0.1);
+  color: #ff9ab7;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}

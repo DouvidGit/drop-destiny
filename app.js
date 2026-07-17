@@ -961,6 +961,7 @@
   function renderResult() {
     STATE.result = SE.evaluate(STATE);
     var r = STATE.result;
+    if (AE.preloadEnding) AE.preloadEnding(r.primaryStyle);
     var html = '';
 
     // 主风格
@@ -997,6 +998,26 @@
     html += '</div>';
 
     dom.resultContent.innerHTML = html;
+  }
+
+  function showFinalSongError(message) {
+    var existing = document.getElementById('finalSongError');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'finalSongError';
+      existing.className = 'final-song-error';
+      dom.resultContent.appendChild(existing);
+    }
+    existing.textContent = message || '新的结局伴奏加载失败。';
+    existing.style.display = '';
+  }
+
+  function clearFinalSongError() {
+    var existing = document.getElementById('finalSongError');
+    if (existing) {
+      existing.textContent = '';
+      existing.style.display = 'none';
+    }
   }
 
   function renderRadarSVG(dna, primaryStyle) {
@@ -1179,16 +1200,25 @@
     if (playSongBtn) {
       playSongBtn.addEventListener('click', function () {
         if (AE.getIsFinalSongPlaying && AE.getIsFinalSongPlaying()) return;
+        clearFinalSongError();
         // 清理 Pattern 试听状态
         cleanupPatternUI();
         // playFinalSong 内部会暂停 Loop，播放最终作品
         playSongBtn.style.display = 'none';
         if (stopSongBtn) stopSongBtn.style.display = '';
-        AE.playFinalSong(STATE, function () {
+        var playback = AE.playFinalSong(STATE, function () {
           // 播放完成回调：恢复按钮状态
           playSongBtn.style.display = '';
           if (stopSongBtn) stopSongBtn.style.display = 'none';
         });
+        if (playback && typeof playback.then === 'function') {
+          playback.then(function (started) {
+            if (started) return;
+            playSongBtn.style.display = '';
+            if (stopSongBtn) stopSongBtn.style.display = 'none';
+            showFinalSongError(AE.getFinalSongError ? AE.getFinalSongError() : null);
+          });
+        }
       });
     }
     if (stopSongBtn) {

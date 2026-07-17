@@ -118,6 +118,41 @@
   var finalSongCompleteCb = null;
   var finalSongTimerId = null;
   var finalSongState = null;
+  var finalSongLoadToken = 0;
+  var finalBackingSource = null;
+  var finalBackingGain = null;
+  var finalBackingGenre = null;
+  var endingBackingCache = {};
+  var lastFinalSongError = null;
+
+  // Collider-rendered backing stems. Primary bassA/bassB is intentionally absent:
+  // the persistent Web Audio bass synth below remains controlled by the user.
+  var ENDING_BACKINGS = {
+    riddimDubstep: {
+      url: 'assets/endings/riddim-dubstep-backing.wav', bpm: 140, root: 55, gain: 1.42,
+      chordOffsets: [0, 1, 0, -2]
+    },
+    brostep: {
+      url: 'assets/endings/brostep-backing.wav', bpm: 150, root: 55, gain: 1.38,
+      chordOffsets: [0, -4, 1, -5]
+    },
+    hybridTrap: {
+      url: 'assets/endings/hybrid-trap-backing.wav', bpm: 150, root: 49, gain: 1.42,
+      chordOffsets: [0, 1, -4, -5]
+    },
+    bassHouse: {
+      url: 'assets/endings/bass-house-backing.wav', bpm: 126, root: 65.4, gain: 1.38,
+      chordOffsets: [0, 5]
+    },
+    melodicDubstep: {
+      url: 'assets/endings/melodic-dubstep-backing.wav', bpm: 150, root: 73.4, gain: 1.25,
+      chordOffsets: [0, -4, 1, -5]
+    },
+    destinyFusion: {
+      url: 'assets/endings/destiny-fusion-backing.wav', bpm: 145, root: 49, gain: 1.38,
+      chordOffsets: [0, 1, 5, -5]
+    }
+  };
 
   // ── Pattern 试听状态 ───────────────────────────────
   var isPatternPlaying = false;
@@ -222,12 +257,12 @@
   };
 
   var GENRE_MIXES = {
-    riddimDubstep: { drums: 1.03, bass: 0.92, harmony: 0.42, lead: 0.55, fx: 0.62 },
-    brostep:       { drums: 1.02, bass: 0.88, harmony: 0.45, lead: 0.70, fx: 0.70 },
-    hybridTrap:    { drums: 1.00, bass: 0.84, harmony: 0.66, lead: 0.76, fx: 0.82 },
-    bassHouse:     { drums: 1.02, bass: 0.80, harmony: 0.75, lead: 0.64, fx: 0.62 },
-    melodicDubstep:{ drums: 0.94, bass: 0.58, harmony: 1.00, lead: 0.98, fx: 0.78 },
-    destinyFusion: { drums: 0.98, bass: 0.80, harmony: 0.82, lead: 0.80, fx: 0.78 }
+    riddimDubstep: { drums: 0.74, bass: 1.12, harmony: 0.70, lead: 0.78, fx: 0.62 },
+    brostep:       { drums: 0.78, bass: 1.12, harmony: 0.65, lead: 0.92, fx: 0.68 },
+    hybridTrap:    { drums: 0.76, bass: 1.06, harmony: 0.88, lead: 0.96, fx: 0.76 },
+    bassHouse:     { drums: 0.80, bass: 1.00, harmony: 0.94, lead: 0.86, fx: 0.64 },
+    melodicDubstep:{ drums: 0.72, bass: 0.82, harmony: 1.18, lead: 1.14, fx: 0.76 },
+    destinyFusion: { drums: 0.76, bass: 1.02, harmony: 1.04, lead: 1.02, fx: 0.74 }
   };
 
   var DRUM_KITS = {
@@ -267,32 +302,59 @@
     }
   };
 
+  // 每个结局只有一套连贯的两小节主骨架。Drop 不再把“所选节奏”和流派网格做 OR 叠加，
+  // 避免 kick/snare 在后半段被多套规则重复触发。
   var GENRE_DRUM_GRIDS = {
     riddimDubstep: {
-      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
-      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], blend: false
+      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0,
+              1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,0,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+              0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0]
     },
     brostep: {
-      kick:  [1,0,1,0, 0,1,0,0, 0,0,1,0, 0,0,1,0],
-      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,1], blend: true
+      kick:  [1,0,1,0, 0,1,0,0, 0,0,1,0, 0,0,1,0,
+              1,0,0,1, 0,0,1,0, 0,1,0,0, 0,0,1,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+              0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0]
     },
     hybridTrap: {
-      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,0,0],
-      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], blend: true
+      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,0,0,
+              1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+              0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0]
     },
     bassHouse: {
-      kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
-      snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], blend: false
+      kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0,
+              1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+      snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,
+              0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0]
     },
     melodicDubstep: {
-      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
-      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], blend: false
+      kick:  [1,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0,
+              1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+      snare: [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+              0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0]
     },
     destinyFusion: {
-      kick:  [1,0,0,0, 0,0,0,1, 0,0,0,0, 1,0,0,0],
-      snare: [0,0,0,0, 1,0,0,0, 0,0,1,0, 0,0,0,0], blend: true
+      kick:  [1,0,0,0, 0,0,0,1, 0,0,0,0, 1,0,0,0,
+              1,0,0,1, 0,0,0,0, 0,1,0,0, 1,0,0,0],
+      snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,
+              0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0]
     }
   };
+
+  // 专门的两小节碎拍：明确的 backbeat 和固定切分，拒绝与其它完整鼓网格叠加。
+  var BREAKBEAT_DRUM_GRID = {
+    kick:  [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0,
+            1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,1,0],
+    snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,
+            0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0]
+  };
+
+  var BREAKBEAT_HAT_GRID = [
+    0.92,0,0.48,0, 0.72,0,0.42,0.22, 0.86,0,0.50,0, 0.68,0.24,0.44,0,
+    0.94,0,0.46,0.20, 0.74,0,0.52,0, 0.88,0,0.42,0.18, 0.70,0,0.56,0.26
+  ];
 
   // 每个流派有自己的帽镲语法；数值同时表示力度，避免只换采样却仍听成同一套节奏。
   var GENRE_HAT_GRIDS = {
@@ -365,6 +427,30 @@
       }).catch(function () {});
     }));
     return sampleLoadPromise;
+  }
+
+  function loadEndingBacking(genre) {
+    if (!ctx || !ENDING_BACKINGS[genre] || typeof global.fetch !== 'function') {
+      return Promise.reject(new Error('Collider backing playback is unavailable'));
+    }
+    if (endingBackingCache[genre]) return endingBackingCache[genre];
+    var spec = ENDING_BACKINGS[genre];
+    endingBackingCache[genre] = global.fetch(spec.url).then(function (response) {
+      if (!response.ok && response.status !== 0) throw new Error('Unable to load ' + spec.url);
+      return response.arrayBuffer();
+    }).then(function (data) {
+      return ctx.decodeAudioData(data.slice(0));
+    }).catch(function (error) {
+      delete endingBackingCache[genre];
+      throw error;
+    });
+    return endingBackingCache[genre];
+  }
+
+  function preloadEnding(genre) {
+    ensureContext();
+    if (!ctx || !ENDING_BACKINGS[genre]) return Promise.resolve(false);
+    return loadEndingBacking(genre).then(function () { return true; }).catch(function () { return false; });
   }
 
   function createPeriodicWaveFromSamples(id) {
@@ -778,7 +864,9 @@
     if (!ctx || !sumGain) return;
     var t = time || ctx.currentTime;
     var kit = getDrumKit();
-    var peak = gainVal == null ? kit.hatGain : Math.max(kit.hatGain * 0.55, gainVal);
+    // 显式传入的 velocity 必须能真正变轻；旧的 55% 下限让 ghost hat 和 fill
+    // 几乎与主 hat 一样响，是鼓组显得拥挤、过大的重要原因。
+    var peak = gainVal == null ? kit.hatGain : Math.max(0.006, gainVal);
     if (kit.hat && sampleBank[kit.hat]) {
       playSample(kit.hat, t, peak, kit.hatRate || 1);
       return;
@@ -1252,6 +1340,20 @@
     } else {
       applyState(state);
     }
+  }
+
+  // Dev-only hook used by the offline reference renderer. It builds the exact same graph
+  // without starting the interactive loop, and resolves after embedded samples are ready.
+  function prepareOfflineRender(state) {
+    ensureContext();
+    if (!ctx || !state) return Promise.resolve(false);
+    createGraph();
+    currentBpm = getBpmFromState(state);
+    stepDuration = (60 / currentBpm) / 4;
+    updateBassParams(state);
+    updatePadParams(state);
+    updateEffects(state);
+    return (sampleLoadPromise || Promise.resolve()).then(function () { return true; });
   }
 
   function previewChoice(phase, optionId) {
@@ -2003,7 +2105,8 @@
       bassBusGain ? bassBusGain.gain : null,
       harmonyBusGain ? harmonyBusGain.gain : null,
       leadBusGain ? leadBusGain.gain : null,
-      fxBusGain ? fxBusGain.gain : null
+      fxBusGain ? fxBusGain.gain : null,
+      masterGain ? masterGain.gain : null
     ];
     for (var i = 0; i < params.length; i++) {
       if (params[i]) {
@@ -2019,6 +2122,7 @@
     if (lfoPitchDepth) smoothSet(lfoPitchDepth.gain, 0, 0.02, now);
     if (lfoFmDepth) smoothSet(lfoFmDepth.gain, 0, 0.02, now);
     if (musicBusGain) smoothSet(musicBusGain.gain, 1, 0.02, now);
+    if (masterGain) smoothSet(masterGain.gain, muted ? 0 : 0.35, 0.02, now);
 
     // 恢复用户正常参数
     if (state) {
@@ -2034,10 +2138,184 @@
 
   // ── 最终歌曲：调度 ─────────────────────────────────
 
+  function resolveFinalGenre(state) {
+    var result = state && (state.result || (global.StyleEngine && global.StyleEngine.evaluate ? global.StyleEngine.evaluate(state) : null));
+    return result ? result.primaryStyle : 'brostep';
+  }
+
+  function setEndingBassPeaks(genre) {
+    if (genre === 'melodicDubstep') {
+      currentBassGatePeak = 0.38; currentSubGatePeak = 0.38;
+    } else if (genre === 'bassHouse') {
+      currentBassGatePeak = 0.48; currentSubGatePeak = 0.46;
+    } else if (genre === 'hybridTrap') {
+      currentBassGatePeak = 0.50; currentSubGatePeak = 0.52;
+    } else if (genre === 'riddimDubstep') {
+      currentBassGatePeak = 0.56; currentSubGatePeak = 0.52;
+    } else if (genre === 'destinyFusion') {
+      currentBassGatePeak = 0.52; currentSubGatePeak = 0.50;
+    } else {
+      currentBassGatePeak = 0.56; currentSubGatePeak = 0.52;
+    }
+  }
+
+  function scheduleUserBassOverBacking(state, genre, startTime) {
+    var spec = ENDING_BACKINGS[genre];
+    if (!spec) return 0;
+    var bpm = spec.bpm;
+    var stepDur = (60 / bpm) / 4;
+    var dropStart = startTime + 24 * stepDur; // 2-bar intro + 3-bar build + 1-bar pre-drop
+    var dropSteps = 7 * 16;                  // Drop A 4 bars + Drop B 3 bars
+    var phrases = GENRE_BASS_PHRASES[genre] || GENRE_BASS_PHRASES.brostep;
+    var variation = state.choices.variation || 'repeat';
+    var synth = getSynthParams(state);
+    var world = state.choices.soundWorld || 'abyss';
+    var worldMultiplier = {
+      abyss: 1,
+      neonCity: 1.5,
+      organicForest: 2,
+      cosmicVoid: 0.5
+    }[world] || 1;
+    var baseFreq = spec.root * worldMultiplier;
+    var offsets = spec.chordOffsets;
+    var userEvents = (state.performance && state.performance.events) || [];
+    var userBassByStep = {};
+
+    // User D/F performance events become additional primary-bass hits during Drop B.
+    for (var ue = 0; ue < userEvents.length; ue++) {
+      var userEvent = userEvents[ue];
+      if (userEvent.pad === 'D' || userEvent.pad === 'F') {
+        userBassByStep[(userEvent.step * 2) % 16] = userEvent.pad;
+      }
+    }
+
+    setEndingBassPeaks(genre);
+    currentBpm = bpm;
+    stepDuration = stepDur;
+    updateLfoRate(state);
+    setGenreBusMix(genre, startTime, 'drop');
+
+    for (var step = 0; step < dropSteps; step++) {
+      var time = dropStart + step * stepDur;
+      var phraseStep = step % 32;
+      var dropB = step >= 64;
+      var phrase = dropB && variation !== 'repeat' ? phrases.b : phrases.a;
+      var foundationHit = !!phrase[phraseStep];
+      var userPad = dropB ? userBassByStep[step % 16] : null;
+      var shouldPlay = foundationHit || (!!userPad && !foundationHit);
+      if (!shouldPlay) continue;
+
+      var bar = Math.floor(step / 16);
+      var chordOffset = offsets[bar % offsets.length];
+      var articulation = getBassArticulation(genre, phraseStep, step, variation);
+      var freq = baseFreq * Math.pow(2, chordOffset / 12) * Math.pow(2, articulation.semitones / 12);
+      if (variation === 'lift' && dropB) freq *= 1.5;
+      if (userPad === 'F' && !foundationHit) freq *= 1.5;
+      freq = Math.max(24.5, Math.min(220, freq));
+
+      var duration = stepDur * articulation.duration;
+      if (userPad && !foundationHit) duration = Math.min(duration, stepDur * 2.1);
+      scheduleBassPitch(freq, time);
+      scheduleBassColor(synth, freq, time, duration, articulation);
+      triggerBassNote(time, duration);
+    }
+    return dropStart + dropSteps * stepDur;
+  }
+
+  function startColliderBackingSong(state, completeCb, genre, buffer, token) {
+    if (!ctx || token !== finalSongLoadToken) return false;
+    stopPreview();
+    if (isFinalSongPlaying) stopFinalSong();
+    stopPattern();
+    if (isLooping && !isPaused) setPaused(true);
+
+    createGraph();
+    isFinalSongPlaying = true;
+    finalSongNodes = [];
+    finalSongCompleteCb = completeCb || null;
+    finalSongState = state;
+    currentDrumKitId = genre;
+
+    updateBassParams(state);
+    updateEffects(state);
+
+    var spec = ENDING_BACKINGS[genre];
+    var t0 = ctx.currentTime + 0.12;
+    var source = ctx.createBufferSource();
+    var gain = ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.setValueAtTime(spec.gain, t0);
+    source.connect(gain);
+    gain.connect(sumGain);
+    source.start(t0);
+    source.stop(t0 + buffer.duration + 0.05);
+    finalBackingSource = source;
+    finalBackingGain = gain;
+    finalBackingGenre = genre;
+    finalSongNodes.push(source, gain);
+
+    if (masterGain) smoothSet(masterGain.gain, muted ? 0 : 0.70, 0.025, t0);
+    scheduleUserBassOverBacking(state, genre, t0);
+
+    finalSongEndTime = t0 + buffer.duration;
+    if (finalSongTimerId) clearTimeout(finalSongTimerId);
+    finalSongTimerId = setTimeout(function () {
+      if (token !== finalSongLoadToken) return;
+      finalSongTimerId = null;
+      isFinalSongPlaying = false;
+      finalSongNodes = [];
+      finalBackingSource = null;
+      finalBackingGain = null;
+      finalBackingGenre = null;
+      silenceAndRestoreParams(state);
+      finalSongState = null;
+      if (finalSongCompleteCb) {
+        var cb = finalSongCompleteCb;
+        finalSongCompleteCb = null;
+        cb();
+      }
+    }, (buffer.duration + 0.45) * 1000);
+    return true;
+  }
+
   function playFinalSong(state, completeCb) {
     ensureContext();
+    if (!ctx) return Promise.resolve(false);
+    if (ctx.state === 'suspended' && typeof ctx.startRendering !== 'function') ctx.resume();
+    var genre = resolveFinalGenre(state);
+    lastFinalSongError = null;
+
+    // Offline regression renders retain the synthesized implementation because an
+    // OfflineAudioContext cannot asynchronously fetch and decode the backing stem.
+    if (typeof ctx.startRendering === 'function') {
+      playLegacyFinalSong(state, completeCb);
+      return Promise.resolve(true);
+    }
+    if (!ENDING_BACKINGS[genre] || typeof global.fetch !== 'function') {
+      lastFinalSongError = 'Collider 伴奏加载不可用。请通过本地 HTTP 服务或部署后的网址打开页面。';
+      return Promise.resolve(false);
+    }
+
+    if (isFinalSongPlaying) stopFinalSong();
+    var token = ++finalSongLoadToken;
+    return loadEndingBacking(genre).then(function (buffer) {
+      if (token !== finalSongLoadToken) return false;
+      return startColliderBackingSong(state, completeCb, genre, buffer, token);
+    }).catch(function (error) {
+      if (token !== finalSongLoadToken) return false;
+      lastFinalSongError = '无法加载新的结局伴奏。请不要直接双击 index.html；请通过 http://localhost 地址打开。';
+      if (global.console && global.console.error) global.console.error(error);
+      return false;
+    });
+  }
+
+  function playLegacyFinalSong(state, completeCb) {
+    ensureContext();
     if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume();
+    // OfflineAudioContext starts in "suspended" state but must be started with startRendering(),
+    // not resume(). Keeping this branch native-browser compatible also makes reference exports
+    // use the exact PeriodicWave / WaveShaper implementation heard in Chrome.
+    if (ctx.state === 'suspended' && typeof ctx.startRendering !== 'function') ctx.resume();
     stopPreview();
 
     // 如果上一次最终歌曲还在播放，先停止
@@ -2089,7 +2367,6 @@
       currentBassGatePeak = 0.50; currentSubGatePeak = 0.50;
     }
     var rId = getRhythmId(state);
-    var basePat = DRUM_PATTERNS[rId] || DRUM_PATTERNS.halfTime;
 
     var sw = state.choices.soundWorld;
     var freqs = SW_FREQS[sw] || SW_FREQS.abyss;
@@ -2107,7 +2384,7 @@
     // Groove Density 是独立维度，不与 Drop Intensity 混淆
     var grooveDensity = (state.groove && state.groove.density != null) ? state.groove.density : 1;
     var genreHatGrid = GENRE_HAT_GRIDS[plan.genre] || GENRE_HAT_GRIDS.brostep;
-    var genreHatPat = genreHatGrid.concat(genreHatGrid);
+    var genreHatPat = rId === 'breakbeat' ? BREAKBEAT_HAT_GRID.slice() : genreHatGrid.concat(genreHatGrid);
     var grooveHihatPat = applyHihatDensity(genreHatPat, grooveDensity, rId);
     var dropHihatPat = applyHihatDensity(grooveHihatPat, intensity.drumDensity, rId);
     var leanHihatPat = applyHihatDensity(dropHihatPat, 0, rId);
@@ -2226,7 +2503,7 @@
       var buildChordDuration = Math.min(15 * stepDur, preDropSilenceStart - buildChordTime);
       if (buildChordDuration > stepDur * 0.5) {
         playChord(buildChordRoot, buildChordTime,
-          buildChordDuration, plan.genre === 'melodicDubstep' ? 0.052 : 0.015, buildChord.quality,
+          buildChordDuration, plan.genre === 'melodicDubstep' ? 0.066 : 0.026, buildChord.quality,
           instrumentation.chord === 'stab' ? 'haze' : instrumentation.chord);
       }
     }
@@ -2234,7 +2511,8 @@
     // Build-up 鼓组
     if (plan.build.drums) {
       var bDrumMode = plan.build.drums;
-      var buildGenreGrid = GENRE_DRUM_GRIDS[plan.genre] || GENRE_DRUM_GRIDS.brostep;
+      var buildGenreGrid = rId === 'breakbeat' ? BREAKBEAT_DRUM_GRID :
+        (GENRE_DRUM_GRIDS[plan.genre] || GENRE_DRUM_GRIDS.brostep);
       for (var bs = 0; bs < buildSteps; bs++) {
         var bsTime = buildStart + bs * stepDur;
         var buildBarIndex = Math.floor(bs / 16);
@@ -2247,16 +2525,16 @@
 
         if (bDrumMode === 'gradual') {
           // Bar 1: 一个定位 Kick；Bar 2: 加入本流派 Hat；Bar 3: 完整骨架。
-          bKick = buildBarIndex === 0 ? buildLocalStep === 0 : !!buildGenreGrid.kick[buildLocalStep];
+          bKick = buildBarIndex === 0 ? buildLocalStep === 0 : !!buildGenreGrid.kick[bs % 32];
           bHat = buildBarIndex >= 1 && !!grooveHihatPat[bs % 32];
-          bSnare = buildBarIndex >= 2 && !!buildGenreGrid.snare[buildLocalStep];
+          bSnare = buildBarIndex >= 2 && !!buildGenreGrid.snare[bs % 32];
         } else if (bDrumMode === 'sparse') {
           bKick = buildLocalStep === 0 || (buildBarIndex === 2 && buildLocalStep === 8);
           bSnare = buildBarIndex === 2 && buildLocalStep === 8;
           bHat = buildBarIndex >= 1 && !!grooveHihatPat[bs % 32] && buildLocalStep % 4 === 2;
         } else if (bDrumMode === 'rising') {
-          bKick = buildBarIndex === 0 ? buildLocalStep === 0 : !!buildGenreGrid.kick[buildLocalStep];
-          bSnare = buildBarIndex >= 1 && !!buildGenreGrid.snare[buildLocalStep];
+          bKick = buildBarIndex === 0 ? buildLocalStep === 0 : !!buildGenreGrid.kick[bs % 32];
+          bSnare = buildBarIndex >= 1 && !!buildGenreGrid.snare[bs % 32];
           bHat = buildBarIndex >= 1 && !!grooveHihatPat[bs % 32];
         }
 
@@ -2332,7 +2610,7 @@
     var spaceMult = intensity.spaceMult;
 
     bassShaper.curve = makeDistortionCurve(Math.min(1.25, Math.max(0, (origDrive / 100) * distortMult)));
-    smoothSet(bassOutGain.gain, (0.048 + (origDrive / 100) * 0.036) * gainMult, 0.05, dropStart);
+    smoothSet(bassOutGain.gain, (0.058 + (origDrive / 100) * 0.044) * gainMult, 0.05, dropStart);
 
     var genreSubScale = {
       riddimDubstep: 0.12, brostep: 0.11, hybridTrap: 0.07,
@@ -2384,6 +2662,8 @@
 
     // Drop 鼓组
     var dDrumMode = plan.drop.drums;
+    var dropDrumGrid = rId === 'breakbeat' ? BREAKBEAT_DRUM_GRID :
+      (GENRE_DRUM_GRIDS[plan.genre] || GENRE_DRUM_GRIDS.brostep);
     for (var ds = 0; ds < dropSteps; ds++) {
       var dsTime = dropStart + ds * stepDur;
       var dpi = ds % 32;
@@ -2392,27 +2672,16 @@
       var rawHat = 0;
 
       if (dDrumMode === 'full') {
-        dKick = !!basePat.kick[dpi];
-        dSnare = !!basePat.snare[dpi];
+        dKick = !!dropDrumGrid.kick[dpi];
+        dSnare = !!dropDrumGrid.snare[dpi];
         rawHat = dropHihatPat[dpi];
         dHat = !!rawHat;
       } else if (dDrumMode === 'lean') {
         // Minimal Tech: kick + snare + 按 groove density 调整 hi-hat
-        dKick = !!basePat.kick[dpi];
-        dSnare = !!basePat.snare[dpi];
+        dKick = !!dropDrumGrid.kick[dpi];
+        dSnare = !!dropDrumGrid.snare[dpi];
         rawHat = leanHihatPat[dpi];
         dHat = !!rawHat;
-      }
-      var genreGrid = GENRE_DRUM_GRIDS[plan.genre];
-      if (genreGrid) {
-        var gridStep = ds % 16;
-        if (genreGrid.blend && dDrumMode === 'full') {
-          dKick = dKick || !!genreGrid.kick[gridStep];
-          dSnare = dSnare || !!genreGrid.snare[gridStep];
-        } else {
-          dKick = !!genreGrid.kick[gridStep];
-          dSnare = !!genreGrid.snare[gridStep];
-        }
       }
       if (dHat) dHatGain = rawHat >= 1 ? drumKit.hatGain : drumKit.hatGain * (0.45 + rawHat);
       if (drumDensity === 2) dHatGain *= 0.88;
@@ -2429,14 +2698,12 @@
       if (dHat) playHihat(dsTime, dHatGain);
 
       // 分流派鼓组细节：House offbeat open hat、Trap rolls、Dubstep tom fills。
-      if (plan.genre === 'bassHouse' && ds % 4 === 2) {
+      if (rId === 'breakbeat') {
+        if (dpi === 15) playOpenHat(dsTime, drumKit.openHatGain * 0.58);
+      } else if (plan.genre === 'bassHouse' && ds % 4 === 2) {
         playOpenHat(dsTime, drumKit.openHatGain);
       } else if (plan.genre === 'melodicDubstep' && ds % 16 === 14) {
         playOpenHat(dsTime, drumKit.openHatGain * 0.84);
-      } else if (plan.genre === 'hybridTrap' && ds % 16 === 15 && (grooveDensity > 0 || drumDensity === 2)) {
-        playHihat(dsTime, 0.038);
-        playHihat(dsTime + stepDur * 0.34, 0.032);
-        playHihat(dsTime + stepDur * 0.68, 0.026);
       } else if (plan.genre === 'hybridTrap' && ds % 32 === 14) {
         playOpenHat(dsTime, drumKit.openHatGain * 0.72);
       } else if (plan.genre === 'brostep' && ds % 32 === 14) {
@@ -2445,34 +2712,24 @@
         playOpenHat(dsTime, drumKit.openHatGain * 0.82);
       }
 
-      if (plan.genre === 'riddimDubstep' && grooveDensity > 0 && ds % 32 === 24) {
+      if (rId !== 'breakbeat' && plan.genre === 'riddimDubstep' && grooveDensity > 0 && dpi === 24) {
         playHihat(dsTime, drumKit.hatGain * 0.82);
         playHihat(dsTime + stepDur * 0.66, drumKit.hatGain * 0.62);
-        playHihat(dsTime + stepDur * 1.33, drumKit.hatGain * 0.48);
       }
 
-      if (ds % 32 === 28 && (plan.genre === 'brostep' || plan.genre === 'riddimDubstep' ||
-          (plan.genre === 'destinyFusion' && ds >= dropHalfSteps))) {
-        playTom(dsTime, bassFreq * 2.5, 0.085);
-        playTom(dsTime + stepDur, bassFreq * 2, 0.075);
-        playTom(dsTime + stepDur * 2, bassFreq * 1.5, 0.07);
+      if (dpi === 30 && rId !== 'breakbeat') {
+        if (plan.genre === 'riddimDubstep') {
+          playTom(dsTime, bassFreq * 2, 0.060);
+          playTom(dsTime + stepDur * 0.72, bassFreq * 1.5, 0.050);
+        } else if (plan.genre === 'brostep' || plan.genre === 'hybridTrap' ||
+            (plan.genre === 'destinyFusion' && ds >= dropHalfSteps)) {
+          playSnare(dsTime + stepDur * 0.5);
+          if (drumDensity === 2) playHihat(dsTime + stepDur * 0.78, drumKit.hatGain * 0.36);
+        }
+      } else if (dpi === 31 && rId === 'breakbeat' && drumDensity === 2) {
+        playHihat(dsTime + stepDur * 0.5, drumKit.hatGain * 0.30);
       }
 
-      // Overload + Busy: 额外 fill（两个维度都高时才加 fill）
-      if (drumDensity === 2 && grooveDensity >= 1 && ds % 16 === 14) {
-        playSnare(dsTime);
-        playHihat(dsTime + stepDur * 0.5, 0.05);
-      }
-      // Busy groove: 每 8 步加 ghost fill
-      if (grooveDensity === 2 && ds % 8 === 6 && !dHat) {
-        playHihat(dsTime, 0.04);
-      }
-      // 每两小节末尾加入真实鼓过门，Brostep/Hybrid 更激进
-      if (ds % 32 === 29 && (plan.genre === 'brostep' || plan.genre === 'hybridTrap' || plan.variation === 'mutate')) {
-        playSnare(dsTime);
-        playHihat(dsTime + stepDur * 0.5, 0.045);
-        playSnare(dsTime + stepDur);
-      }
     }
 
     // Drop bass — Variation 影响后半段（第 5-8 小节）。
@@ -2492,10 +2749,10 @@
     for (var db = 0; db < dropSteps; db++) {
       var dbTime = dropStart + db * stepDur;
       var isSecondHalf = db >= dropHalfSteps;
-      if (isSecondHalf && hasUserPattern) continue;
       var bassBlock = Math.floor(db / 32);
       var usePat;
       if (bassBlock === 0) usePat = dropBassPatA;
+      else if (plan.variation === 'repeat') usePat = dropBassPatA;
       else if (bassBlock === 1) usePat = genrePhrases.b;
       else if (plan.variation === 'mutate') usePat = bassBlock === 2 ? dropBassPatB : dropBassPatA;
       else usePat = bassBlock % 2 ? dropBassPatB : dropBassPatA;
@@ -2528,9 +2785,9 @@
     // Drop 和弦与旋律分层；旋律流派更宽，其余流派只保留低声部锚点
     for (var dc = 0; dc < plan.drop.bars; dc++) {
       var chordGain = {
-        riddimDubstep: 0.009, brostep: 0.011, hybridTrap: 0.020,
-        bassHouse: 0.016, melodicDubstep: 0.108, destinyFusion: 0.060
-      }[plan.genre] || 0.014;
+        riddimDubstep: 0.018, brostep: 0.021, hybridTrap: 0.032,
+        bassHouse: 0.030, melodicDubstep: 0.118, destinyFusion: 0.078
+      }[plan.genre] || 0.024;
       var dropChord = chordProgression[dc % chordProgression.length];
       var dropChordTime = dropStart + dc * 16 * stepDur;
       var dropChordRoot = padFreqs[0] * dropChord.ratio;
@@ -2542,7 +2799,7 @@
         15 * stepDur, chordGain, dropChord.quality, instrumentation.chord === 'stab' ? 'haze' : instrumentation.chord);
       if (plan.genre === 'melodicDubstep') {
         playChord(dropChordRoot * 2, dropChordTime, 14.5 * stepDur,
-          0.024, dropChord.quality, 'supersaw');
+          0.032, dropChord.quality, 'supersaw');
       }
     }
 
@@ -2600,7 +2857,7 @@
           var dropMelodyTime = dropStart + (melodyBlock * 32 + dropEvent.step) * stepDur;
           playLeadNote(padFreqs[0] * 2 * minorScale[dropEvent.note] * melodyTranspose,
             dropMelodyTime, dropEvent.dur * stepDur,
-            plan.genre === 'melodicDubstep' ? 0.056 : 0.042, instrumentation.lead);
+            plan.genre === 'melodicDubstep' ? 0.064 : 0.048, instrumentation.lead);
         }
       }
 
@@ -2625,12 +2882,22 @@
       var dropStepDur8 = (60 / bpm) / 2; // 八分音符
       var patternOffset = dropStart + dropHalfSteps * stepDur;
       for (var repetition = 0; repetition < 4; repetition++) {
+        var patternFillUsed = false;
+        var patternChordUsed = false;
         for (var e = 0; e < evs.length; e++) {
           var ev = evs[e];
           var et = patternOffset + repetition * 8 * dropStepDur8 + ev.step * dropStepDur8;
           if (et >= dropEnd) continue;
           var patternAbsStep = dropHalfSteps + repetition * 16 + ev.step * 2;
           var patternPhraseStep = (repetition * 16 + ev.step * 2) % 32;
+          var patternBassBlock = Math.floor(patternAbsStep / 32);
+          var foundationPat;
+          if (patternBassBlock === 0) foundationPat = dropBassPatA;
+          else if (plan.variation === 'repeat') foundationPat = dropBassPatA;
+          else if (patternBassBlock === 1) foundationPat = genrePhrases.b;
+          else if (plan.variation === 'mutate') foundationPat = patternBassBlock === 2 ? dropBassPatB : dropBassPatA;
+          else foundationPat = patternBassBlock % 2 ? dropBassPatB : dropBassPatA;
+          var patternGap = !foundationPat[patternAbsStep % 32];
           var patternArticulation = getBassArticulation(plan.genre, patternPhraseStep, patternAbsStep, plan.variation);
           var patternDuration = Math.min(dropStepDur8 * 1.3, stepDur * Math.max(0.75, patternArticulation.duration));
           var patternBassFreq = bassFreq;
@@ -2639,30 +2906,34 @@
             patternBassFreq *= chordProgression[repetition % chordProgression.length].ratio;
           }
 
-          if (ev.pad === 'D') {
-            scheduleBassPitch(patternBassFreq, et);
-            scheduleBassColor(synth, patternBassFreq, et, patternDuration, patternArticulation);
-            triggerBassNote(et, patternDuration);
+          if (ev.pad === 'D' && patternGap) {
+            playBassOneShot(patternBassFreq, patternDuration, 0.105, et, 0.02);
             scheduleGenreBassLayer(plan.genre, patternBassFreq, et, stepDur,
               patternAbsStep, patternPhraseStep);
-            playKick(et);
-          } else if (ev.pad === 'F') {
-            scheduleBassPitch(patternBassFreq * 1.5, et);
-            scheduleBassColor(synth, patternBassFreq * 1.5, et, patternDuration, patternArticulation);
-            triggerBassNote(et, patternDuration);
+          } else if (ev.pad === 'F' && patternGap) {
+            playBassOneShot(patternBassFreq * 1.5, patternDuration, 0.096, et, 0.08);
             scheduleGenreBassLayer(plan.genre, patternBassFreq * 1.5, et, stepDur,
               patternAbsStep, patternPhraseStep);
-            scheduleBassPitch(patternBassFreq, et + patternDuration + 0.01);
-          } else if (ev.pad === 'J') {
+          } else if (ev.pad === 'J' && !patternFillUsed && patternPhraseStep >= 28) {
             playSnare(et);
-            playHihat(et + dropStepDur8 * 0.3, 0.05);
-            playSnare(et + dropStepDur8 * 0.6);
-          } else if (ev.pad === 'K') {
+            playHihat(et + dropStepDur8 * 0.45, drumKit.hatGain * 0.32);
+            patternFillUsed = true;
+          } else if (ev.pad === 'K' && !patternChordUsed && repetition % 2 === 1) {
             var patternChord = chordProgression[repetition % chordProgression.length];
-            playChord(padFreqs[0] * patternChord.ratio, et, dropStepDur8 * 0.9, 0.075, patternChord.quality, 'stab');
+            playChord(padFreqs[0] * patternChord.ratio, et, dropStepDur8 * 0.9, 0.054, patternChord.quality, 'stab');
+            patternChordUsed = true;
           }
         }
       }
+    }
+
+    // Put the musical ending on the audio timeline itself. Real-time playback still uses the
+    // cleanup timer below, while OfflineAudioContext (which does not advance JS timers during
+    // rendering) now receives the same short final fade instead of holding the last gate open.
+    if (musicBusGain) {
+      musicBusGain.gain.cancelScheduledValues(dropEnd);
+      musicBusGain.gain.setValueAtTime(1, dropEnd);
+      musicBusGain.gain.linearRampToValueAtTime(0.0001, dropEnd + 0.14);
     }
 
     currentTracking = null;
@@ -2690,6 +2961,7 @@
   }
 
   function stopFinalSong() {
+    finalSongLoadToken++;
     if (finalSongTimerId) {
       clearTimeout(finalSongTimerId);
       finalSongTimerId = null;
@@ -2704,6 +2976,9 @@
       try { n.disconnect(); } catch (e) {}
     }
     finalSongNodes = [];
+    finalBackingSource = null;
+    finalBackingGain = null;
+    finalBackingGenre = null;
 
     // 取消持久参数的自动化事件并安全淡出 + 恢复正常参数
     silenceAndRestoreParams(finalSongState);
@@ -2732,7 +3007,7 @@
   function setMuted(m) {
     muted = m;
     if (masterGain && ctx) {
-      smoothSet(masterGain.gain, m ? 0 : 0.35, 0.02);
+      smoothSet(masterGain.gain, m ? 0 : (isFinalSongPlaying && finalBackingSource ? 0.70 : 0.35), 0.02);
     }
   }
 
@@ -2785,6 +3060,19 @@
     return isPaused;
   }
 
+  function getDebugState() {
+    return {
+      finalMode: finalBackingSource ? 'collider-backing+user-bass' : (isFinalSongPlaying ? 'synthesized-fallback' : 'idle'),
+      finalGenre: finalBackingGenre,
+      bpm: currentBpm,
+      synthParams: currentSynthParams ? Object.assign({}, currentSynthParams) : null
+    };
+  }
+
+  function getFinalSongError() {
+    return lastFinalSongError;
+  }
+
   // ── 暴露 ──────────────────────────────────────────
   global.AudioEngine = {
     start: start,
@@ -2794,15 +3082,19 @@
     stopPattern: stopPattern,
     getIsPatternPlaying: getIsPatternPlaying,
     playFinalSong: playFinalSong,
+    preloadEnding: preloadEnding,
     stopFinalSong: stopFinalSong,
     getIsFinalSongPlaying: getIsFinalSongPlaying,
     getFinalSongPosition: getFinalSongPosition,
+    getFinalSongError: getFinalSongError,
     stop: stop,
     setMuted: setMuted,
     getAnalyser: getAnalyser,
     getIsPlaying: getIsPlaying,
     getPosition: getPosition,
     getBpm: getBpm,
+    _prepareOfflineRender: prepareOfflineRender,
+    _getDebugState: getDebugState,
     setPaused: setPaused,
     getIsPaused: getIsPaused
   };
