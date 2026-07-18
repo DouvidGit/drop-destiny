@@ -2899,6 +2899,12 @@ header { position: relative; }
   }
 }
 
+/* Match the cover's open tracking on the two condensed display marks. */
+.logo,
+.result-style .style-name {
+  letter-spacing: 0.08em;
+}
+
 /* Must remain last: the legacy cover block above uses a font shorthand. */
 .intro-title,
 #app[data-phase="intro"] .intro-title {
