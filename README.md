@@ -2,6 +2,21 @@
 
 一个以 Bass 音色塑造为核心的浏览器音乐创作游戏。用户依次选择声音世界、Bass 核心性格与节奏骨架，然后进入真正的合成器工作台；最终曲风、编排倾向与 Drop 强度由用户的真实合成参数自动推导。
 
+## 任务提交信息
+
+- **选题方向**：方向 A — 音乐主题小游戏
+- **一句话简介**：亲手塑造 Bass 音色，并让它进入一首完整、可视化的 Bass Music Drop。
+- **主要功能（200 字以内）**：用户依次选择声音世界、Bass 性格和节奏骨架，在 Bass Forge 中调节双振荡器、FM、失真、滤波器、包络、LFO、Sub 与空间参数。系统根据真实参数判定六种结局之一，播放完整编曲，并在 Drop 段实时叠加用户制作的主 Bass 与音频可视化。
+- **启动方式**：解压 ZIP 后双击根目录的 `index.html`，再点击封面任意位置开启声音。推荐使用最新版 Chrome 或 Edge。
+
+### WorkBuddy 协作截图
+
+![WorkBuddy 生成项目规格书](docs/workbuddy/01-spec-generation.png)
+
+![WorkBuddy 调整歌曲结构](docs/workbuddy/02-song-structure.png)
+
+![WorkBuddy 嵌入本地字体](docs/workbuddy/03-local-font.png)
+
 ## 运行
 
 无需安装依赖或启动服务器：
@@ -134,7 +149,7 @@ node dev/test-visualizer.js
 
 ## 提交包
 
-运行 `powershell -ExecutionPolicy Bypass -File dev/package-submission.ps1` 可生成 `dist/DROP_DESTINY_SUBMISSION.zip`。提交包只包含离线运行所需文件、许可证和任务文档，不包含开发脚本、SuperCollider 源码及测试导出物。
+运行 `powershell -ExecutionPolicy Bypass -File dev/package-submission.ps1` 可生成符合任务说明书命名及目录要求的 `dist/卢子宸_方向A.zip`。提交包只包含离线运行所需文件、README、复盘文档、许可证和 WorkBuddy 截图，不包含开发脚本、SuperCollider 源码及测试导出物。
 
 ## 第三方素材
 
