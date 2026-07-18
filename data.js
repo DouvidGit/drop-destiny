@@ -142,6 +142,39 @@
     mechanical: { body: 65, growl: 70, wobble: 75, space: 30 }
   };
 
+  // ── Bass Forge 真实合成器预设 ───────────────────────
+
+  var SYNTH_PRESETS = {
+    brutal: {
+      waveform: 'distorted', oscB: 'square', oscMix: 46, detune: 8,
+      filterType: 'lowpass', filterEnv: 82,
+      sub: 78, fm: 82, cutoff: 920, resonance: 12.5,
+      drive: 90, attack: 3, release: 68,
+      rate: 3, depth: 68, lfoShape: 'sawtooth', lfoTarget: 'filter', space: 22
+    },
+    wobbly: {
+      waveform: 'granite', oscB: 'sawtooth', oscMix: 55, detune: 17,
+      filterType: 'bandpass', filterEnv: 58,
+      sub: 64, fm: 58, cutoff: 1450, resonance: 10,
+      drive: 62, attack: 7, release: 135,
+      rate: 2, depth: 92, lfoShape: 'sine', lfoTarget: 'filter', space: 38
+    },
+    melodic: {
+      waveform: 'vocal', oscB: 'triangle', oscMix: 34, detune: 22,
+      filterType: 'lowpass', filterEnv: 44,
+      sub: 52, fm: 28, cutoff: 3100, resonance: 4.5,
+      drive: 28, attack: 24, release: 270,
+      rate: 1, depth: 42, lfoShape: 'triangle', lfoTarget: 'filter', space: 76
+    },
+    mechanical: {
+      waveform: 'bitCore', oscB: 'square', oscMix: 58, detune: 5,
+      filterType: 'notch', filterEnv: 90,
+      sub: 66, fm: 74, cutoff: 1250, resonance: 15,
+      drive: 76, attack: 2, release: 48,
+      rate: 3, depth: 78, lfoShape: 'square', lfoTarget: 'fm', space: 26
+    }
+  };
+
   // n = (currentValue - presetDefault) / 50，然后乘以下列系数
   var MACRO_DNA_RULES = {
     body:   { aggression: 12, rhythm: 5, space: -5 },
@@ -275,6 +308,7 @@
     DNA_AXES: DNA_AXES,
     CHOICES: CHOICES,
     BASS_PRESETS: BASS_PRESETS,
+    SYNTH_PRESETS: SYNTH_PRESETS,
     MACRO_DNA_RULES: MACRO_DNA_RULES,
     STYLE_PROFILES: STYLE_PROFILES,
     STYLE_ANCHORS: STYLE_ANCHORS,

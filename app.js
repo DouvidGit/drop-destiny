@@ -12,16 +12,16 @@
   var VIZ = window.Visualizer;
 
   // ── 常量 ──────────────────────────────────────────
-  var PHASES = ['intro', 'soundWorld', 'bassForge', 'groove', 'arrangement', 'liveDrop', 'result'];
-  var STAGE_PHASES = ['soundWorld', 'bassForge', 'groove', 'arrangement', 'liveDrop'];
+  var PHASES = ['intro', 'soundWorld', 'bassCore', 'rhythm', 'bassForge', 'result'];
+  var STAGE_PHASES = ['soundWorld', 'bassCore', 'rhythm', 'bassForge'];
   var DNA_AXES = D.DNA_AXES;
   var DNA_LABELS = {
     rhythm: 'Rhythm', aggression: 'Aggression', harmony: 'Harmony',
     movement: 'Movement', space: 'Space', surprise: 'Surprise'
   };
   var DNA_COLORS = {
-    rhythm: '#6644ff', aggression: '#ff3344', harmony: '#44ff88',
-    movement: '#ffcc00', space: '#00ffcc', surprise: '#ff00aa'
+    rhythm: '#FFCE00', aggression: '#FF3B18', harmony: '#FFE9B0',
+    movement: '#FF7A00', space: '#FFFFFF', surprise: '#A7190B'
   };
 
   // ── 状态（spec section 5）──────────────────────────
@@ -39,6 +39,13 @@
         drop: null
       },
       bassMacros: { body: 50, growl: 50, wobble: 50, space: 50 },
+      synthParams: {
+        waveform: 'distorted', oscB: 'sawtooth', oscMix: 45, detune: 12,
+        filterType: 'lowpass', filterEnv: 60,
+        sub: 60, fm: 50, cutoff: 1400, resonance: 8,
+        drive: 55, attack: 5, release: 110,
+        rate: 2, depth: 55, lfoShape: 'sine', lfoTarget: 'filter', space: 40
+      },
       groove: { density: 1, fillPreference: 1 },
       performance: { events: [], completed: false },
       dna: Object.assign({}, D.INITIAL_DNA),
@@ -52,14 +59,11 @@
 
   function cacheDom() {
     dom.app = document.getElementById('app');
+    dom.studioShell = document.getElementById('studioShell');
     dom.main = document.getElementById('main');
-    dom.footer = document.getElementById('footer');
     dom.progressDots = document.getElementById('progressDots');
     dom.muteBtn = document.getElementById('muteBtn');
-    dom.dnaBars = document.getElementById('dnaBars');
-    dom.phaseLabel = document.getElementById('phaseLabel');
     dom.introCanvas = document.getElementById('introCanvas');
-    dom.startBtn = document.getElementById('startBtn');
     dom.resultContent = document.getElementById('resultContent');
     // Workbench
     dom.workbench = document.getElementById('workbench');
@@ -67,6 +71,15 @@
     dom.wbBpm = document.getElementById('wbBpm');
     dom.wbPosition = document.getElementById('wbPosition');
     dom.wbCanvas = document.getElementById('wbCanvas');
+    dom.visualSceneLabel = document.getElementById('visualSceneLabel');
+    dom.visualSectionLabel = document.getElementById('visualSectionLabel');
+    dom.visualModeBtn = document.getElementById('visualModeBtn');
+    dom.visualFullscreenBtn = document.getElementById('visualFullscreenBtn');
+    dom.driveStage = document.getElementById('driveStage');
+    dom.driveHeatLabel = document.getElementById('driveHeatLabel');
+    dom.auditionBass = document.getElementById('auditionBass');
+    dom.resetBass = document.getElementById('resetBass');
+    dom.synthVisualDock = document.getElementById('synthVisualDock');
     dom.sections = {};
     PHASES.forEach(function (p) {
       dom.sections[p] = document.getElementById(p);
@@ -81,23 +94,19 @@
     container.innerHTML = '';
     var choices = D.CHOICES[choiceKey];
     var keys = Object.keys(choices);
-    keys.forEach(function (key, idx) {
+    keys.forEach(function (key) {
       var opt = choices[key];
       var card = document.createElement('div');
       card.className = 'option-card';
       card.dataset.choice = key;
       card.dataset.phase = choiceKey;
       if (STATE.choices[choiceKey] === key) card.classList.add('selected');
-      var num = document.createElement('span');
-      num.className = 'opt-num';
-      num.textContent = (idx + 1);
       var label = document.createElement('div');
       label.className = 'opt-label';
       label.textContent = opt.label;
       var desc = document.createElement('div');
       desc.className = 'opt-desc';
       desc.textContent = opt.description;
-      card.appendChild(num);
       card.appendChild(label);
       card.appendChild(desc);
       card.addEventListener('click', function () {
@@ -121,7 +130,10 @@
       });
     }
 
-    // 预览音效
+    if (phase === 'bassPersonality') applyPresetDefaults(optionId);
+
+    // 预览音效（Bass 先应用预设，确保听到所选音色）
+    AE.applyState(STATE);
     AE.previewChoice(phase, optionId);
 
     // 特殊处理
@@ -131,20 +143,13 @@
       AE.start(STATE);
       showWorkbench();
     }
-    if (phase === 'bassPersonality') {
-      applyPresetDefaults(optionId);
+    if (phase === 'bassPersonality' && STATE.phase === 'bassForge') {
       showMacroPanel();
     }
     if (phase === 'rhythm') {
       showDensityPanel();
+      checkMacroAdjusted();
     }
-    if (phase === 'structure') {
-      showVariationPanel();
-    }
-    if (phase === 'drop') {
-      showPatternPanel();
-    }
-
     recomputeDerivedState();
     updateNextButton();
   }
@@ -153,9 +158,7 @@
     var map = {
       soundWorld: 'soundWorldOptions',
       bassPersonality: 'bassPersonalityOptions',
-      rhythm: 'rhythmOptions',
-      structure: 'structureOptions',
-      drop: 'dropOptions'
+      rhythm: 'rhythmOptions'
     };
     return document.getElementById(map[phase]);
   }
@@ -163,69 +166,281 @@
   // ── Bass 宏观控制 ─────────────────────────────────
 
   function applyPresetDefaults(personality) {
-    var preset = D.BASS_PRESETS[personality];
-    if (!preset) return;
-    STATE.bassMacros.body = preset.body;
-    STATE.bassMacros.growl = preset.growl;
-    STATE.bassMacros.wobble = preset.wobble;
-    STATE.bassMacros.space = preset.space;
+    var synthPreset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[personality];
+    if (!synthPreset) return;
+    STATE.synthParams = Object.assign({}, synthPreset);
+    syncLegacyMacrosFromSynth();
     updateMacroUI();
   }
 
   function showMacroPanel() {
     var panel = document.getElementById('macroPanel');
     if (panel) panel.style.display = 'block';
+    renderWaveformOptions();
     updateMacroUI();
   }
 
   function updateMacroUI() {
-    var macros = ['body', 'growl', 'wobble', 'space'];
-    macros.forEach(function (m) {
-      var input = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1));
-      var val = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1) + 'Val');
-      if (input) input.value = STATE.bassMacros[m];
-      if (val) val.textContent = STATE.bassMacros[m];
+    var knobs = document.querySelectorAll('.synth-knob[data-synth-param]');
+    knobs.forEach(function (knob) {
+      var param = knob.dataset.synthParam;
+      setKnobVisual(knob, STATE.synthParams[param]);
     });
+    var selectorMap = {
+      filterType: 'filterType', oscBType: 'oscB',
+      lfoShape: 'lfoShape', lfoTarget: 'lfoTarget'
+    };
+    Object.keys(selectorMap).forEach(function (id) {
+      var selector = document.getElementById(id);
+      if (selector) selector.value = STATE.synthParams[selectorMap[id]];
+    });
+    updateWaveformSelection();
+    drawSynthWaveform();
+    updateDriveHeatUI();
     checkMacroAdjusted();
   }
 
+  function updateDriveHeatUI() {
+    var drive = Math.max(0, Math.min(100, Number(STATE.synthParams.drive) || 0));
+    var label = drive < 24 ? 'CLEAN CUT' : drive < 48 ? 'GRIT' : drive < 72 ? 'CRUSH' : drive < 90 ? 'BURN' : 'MELTDOWN';
+    if (dom.driveHeatLabel) dom.driveHeatLabel.textContent = label;
+    if (dom.driveStage) {
+      dom.driveStage.dataset.heat = drive < 34 ? 'low' : drive < 70 ? 'mid' : 'high';
+      dom.driveStage.style.setProperty('--drive-level', drive / 100);
+    }
+    if (dom.app) dom.app.style.setProperty('--drive-level', drive / 100);
+  }
+
   function checkMacroAdjusted() {
-    var preset = D.BASS_PRESETS[STATE.choices.bassPersonality];
+    var preset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[STATE.choices.bassPersonality];
     var hint = document.getElementById('macroHint');
     if (!preset || !hint) return;
-    var adjusted = false;
-    var macros = ['body', 'growl', 'wobble', 'space'];
-    for (var i = 0; i < macros.length; i++) {
-      if (STATE.bassMacros[macros[i]] !== preset[macros[i]]) {
-        adjusted = true;
-        break;
-      }
-    }
+    var params = ['waveform', 'oscB', 'oscMix', 'detune', 'filterType', 'filterEnv',
+      'sub', 'fm', 'cutoff', 'resonance', 'drive', 'attack', 'release',
+      'rate', 'depth', 'lfoShape', 'lfoTarget', 'space'];
+    var adjusted = params.some(function (param) {
+      return STATE.synthParams[param] !== preset[param];
+    });
     hint.classList.toggle('adjusted', adjusted);
-    hint.textContent = adjusted ? '✓ 已调整宏观控制' : '从预设默认值开始，至少调节一个旋钮';
+    hint.textContent = adjusted ? '✓ BASS 已经离开预设，可以铸造结局' : '改变至少一个真实参数，才能完成铸造。';
   }
 
   function setupMacroListeners() {
-    var macros = ['body', 'growl', 'wobble', 'space'];
-    macros.forEach(function (m) {
-      var input = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1));
-      if (!input) return;
-      input.addEventListener('input', function () {
-        STATE.bassMacros[m] = parseInt(input.value, 10);
-        var val = document.getElementById('macro' + m.charAt(0).toUpperCase() + m.slice(1) + 'Val');
-        if (val) val.textContent = input.value;
-        checkMacroAdjusted();
-        recomputeDerivedState();
-        updateNextButton();
+    document.querySelectorAll('.synth-knob[data-synth-param]').forEach(setupKnobInteraction);
+
+    var selectors = [
+      { id: 'filterType', param: 'filterType' },
+      { id: 'oscBType', param: 'oscB' },
+      { id: 'lfoShape', param: 'lfoShape' },
+      { id: 'lfoTarget', param: 'lfoTarget' }
+    ];
+    selectors.forEach(function (item) {
+      var selector = document.getElementById(item.id);
+      if (selector) selector.addEventListener('change', function () {
+        STATE.synthParams[item.param] = selector.value;
+        updateMacroUI();
+        synthParamChanged();
       });
     });
+  }
+
+  function setupForgeActions() {
+    if (dom.auditionBass) {
+      dom.auditionBass.addEventListener('click', function () {
+        if (!STATE.choices.bassPersonality) return;
+        AE.applyState(STATE);
+        AE.previewChoice('bassPersonality', STATE.choices.bassPersonality);
+        if (VIZ.pulsePad) VIZ.pulsePad('F', Math.round((STATE.synthParams.drive || 0) / 13));
+      });
+    }
+    if (dom.resetBass) {
+      dom.resetBass.addEventListener('click', function () {
+        if (!STATE.choices.bassPersonality) return;
+        applyPresetDefaults(STATE.choices.bassPersonality);
+        recomputeDerivedState();
+        updateNextButton();
+        AE.previewChoice('bassPersonality', STATE.choices.bassPersonality);
+      });
+    }
+  }
+
+  function setupKnobInteraction(knob) {
+    var startY = 0;
+    var startNormalized = 0;
+
+    knob.addEventListener('pointerdown', function (event) {
+      startY = event.clientY;
+      startNormalized = valueToNormalized(knob, STATE.synthParams[knob.dataset.synthParam]);
+      knob.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    knob.addEventListener('pointermove', function (event) {
+      if (!knob.hasPointerCapture(event.pointerId)) return;
+      var normalized = Math.max(0, Math.min(1, startNormalized + (startY - event.clientY) / 150));
+      setSynthParam(knob.dataset.synthParam, normalizedToValue(knob, normalized));
+    });
+    knob.addEventListener('wheel', function (event) {
+      event.preventDefault();
+      var normalized = valueToNormalized(knob, STATE.synthParams[knob.dataset.synthParam]);
+      normalized += event.deltaY < 0 ? 0.025 : -0.025;
+      setSynthParam(knob.dataset.synthParam, normalizedToValue(knob, Math.max(0, Math.min(1, normalized))));
+    }, { passive: false });
+    knob.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowRight' && event.key !== 'ArrowDown' && event.key !== 'ArrowLeft') return;
+      event.preventDefault();
+      var direction = (event.key === 'ArrowUp' || event.key === 'ArrowRight') ? 1 : -1;
+      var step = parseFloat(knob.dataset.step) || 1;
+      setSynthParam(knob.dataset.synthParam, STATE.synthParams[knob.dataset.synthParam] + direction * step);
+    });
+    knob.addEventListener('dblclick', function () {
+      var preset = D.SYNTH_PRESETS[STATE.choices.bassPersonality];
+      if (preset) setSynthParam(knob.dataset.synthParam, preset[knob.dataset.synthParam]);
+    });
+  }
+
+  function valueToNormalized(knob, value) {
+    var min = parseFloat(knob.dataset.min);
+    var max = parseFloat(knob.dataset.max);
+    if (knob.dataset.curve === 'log') return Math.log(value / min) / Math.log(max / min);
+    return (value - min) / (max - min);
+  }
+
+  function normalizedToValue(knob, normalized) {
+    var min = parseFloat(knob.dataset.min);
+    var max = parseFloat(knob.dataset.max);
+    var step = parseFloat(knob.dataset.step) || 1;
+    var value = knob.dataset.curve === 'log' ? min * Math.pow(max / min, normalized) : min + (max - min) * normalized;
+    return Math.round(value / step) * step;
+  }
+
+  function setSynthParam(param, value) {
+    var knob = document.querySelector('.synth-knob[data-synth-param="' + param + '"]');
+    if (knob) {
+      var min = parseFloat(knob.dataset.min);
+      var max = parseFloat(knob.dataset.max);
+      value = Math.max(min, Math.min(max, value));
+    }
+    STATE.synthParams[param] = value;
+    syncLegacyMacrosFromSynth();
+    updateMacroUI();
+    synthParamChanged();
+  }
+
+  function synthParamChanged() {
+    syncLegacyMacrosFromSynth();
+    checkMacroAdjusted();
+    recomputeDerivedState();
+    updateNextButton();
+  }
+
+  function syncLegacyMacrosFromSynth() {
+    var s = STATE.synthParams;
+    STATE.bassMacros.body = Math.round(s.sub);
+    STATE.bassMacros.growl = Math.round(Math.min(100,
+      s.fm * 0.28 + s.drive * 0.34 + (s.resonance / 20) * 18 + s.filterEnv * 0.20));
+    STATE.bassMacros.wobble = Math.round(Math.min(100,
+      s.depth * 0.76 + (s.rate / 4) * 16 + (s.detune / 36) * 8));
+    var releaseSpace = Math.max(0, Math.min(1, (s.release - 30) / 470));
+    STATE.bassMacros.space = Math.round(Math.min(100, s.space * 0.90 + releaseSpace * 10));
+  }
+
+  function setKnobVisual(knob, value) {
+    var normalized = Math.max(0, Math.min(1, valueToNormalized(knob, value)));
+    var angle = -135 + normalized * 270;
+    knob.style.setProperty('--knob-angle', angle + 'deg');
+    knob.style.setProperty('--knob-fill', (normalized * 270) + 'deg');
+    knob.setAttribute('aria-valuemin', knob.dataset.min);
+    knob.setAttribute('aria-valuemax', knob.dataset.max);
+    knob.setAttribute('aria-valuenow', value);
+    var valueNode = document.getElementById(knob.id + 'Val');
+    if (valueNode) valueNode.textContent = formatSynthValue(knob.dataset.synthParam, value);
+  }
+
+  function formatSynthValue(param, value) {
+    if (param === 'cutoff') return value >= 1000 ? (value / 1000).toFixed(value >= 3000 ? 1 : 2) + ' kHz' : Math.round(value) + ' Hz';
+    if (param === 'resonance') return Number(value).toFixed(1) + ' Q';
+    if (param === 'detune') return Math.round(value) + ' ct';
+    if (param === 'attack' || param === 'release') return Math.round(value) + ' ms';
+    if (param === 'rate') return ['1/2', '1/4', '1/8', '1/8T', '1/16'][Math.round(value)] || '1/8';
+    return Math.round(value) + '%';
+  }
+
+  function renderWaveformOptions() {
+    var container = document.getElementById('waveformOptions');
+    var bank = window.DropDestinyWavetables;
+    if (!container || !bank || container.children.length) return;
+    Object.keys(bank.tables).forEach(function (id) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'waveform-btn';
+      button.dataset.waveform = id;
+      button.textContent = bank.metadata[id].label;
+      button.addEventListener('click', function () {
+        STATE.synthParams.waveform = id;
+        updateWaveformSelection();
+        drawSynthWaveform();
+        synthParamChanged();
+      });
+      container.appendChild(button);
+    });
+  }
+
+  function updateWaveformSelection() {
+    document.querySelectorAll('.waveform-btn').forEach(function (button) {
+      button.classList.toggle('active', button.dataset.waveform === STATE.synthParams.waveform);
+    });
+  }
+
+  function drawSynthWaveform() {
+    var canvas = document.getElementById('synthWaveCanvas');
+    var bank = window.DropDestinyWavetables;
+    if (!canvas || !bank || !bank.tables[STATE.synthParams.waveform]) return;
+    var context = canvas.getContext('2d');
+    var samples = bank.tables[STATE.synthParams.waveform];
+    var width = canvas.width;
+    var height = canvas.height;
+    context.clearRect(0, 0, width, height);
+    context.strokeStyle = 'rgba(255,206,0,0.18)';
+    context.beginPath(); context.moveTo(0, height / 2); context.lineTo(width, height / 2); context.stroke();
+    var oscB = STATE.synthParams.oscB || 'sawtooth';
+    var mix = Math.max(0, Math.min(1, (STATE.synthParams.oscMix == null ? 45 : STATE.synthParams.oscMix) / 100));
+    var gainA = Math.cos(mix * Math.PI / 2);
+    var gainB = Math.sin(mix * Math.PI / 2);
+    function oscBSample(phase) {
+      if (oscB === 'sine') return Math.sin(phase * Math.PI * 2);
+      if (oscB === 'triangle') return 1 - 4 * Math.abs(Math.round(phase) - phase);
+      if (oscB === 'square') return phase < 0.5 ? 1 : -1;
+      return 2 * phase - 1;
+    }
+    context.strokeStyle = 'rgba(215,47,25,0.62)';
+    context.lineWidth = 1;
+    context.beginPath();
+    for (var b = 0; b < samples.length; b++) {
+      var bx = b / (samples.length - 1) * width;
+      var by = height / 2 - oscBSample(b / (samples.length - 1)) * height * 0.28;
+      if (b === 0) context.moveTo(bx, by); else context.lineTo(bx, by);
+    }
+    context.stroke();
+    context.strokeStyle = '#FFCE00';
+    context.lineWidth = 2;
+    context.shadowColor = '#FF3B18';
+    context.shadowBlur = 8;
+    context.beginPath();
+    for (var i = 0; i < samples.length; i++) {
+      var x = i / (samples.length - 1) * width;
+      var combined = samples[i] * gainA + oscBSample(i / (samples.length - 1)) * gainB;
+      var y = height / 2 - combined * height * 0.31;
+      if (i === 0) context.moveTo(x, y); else context.lineTo(x, y);
+    }
+    context.stroke();
+    context.shadowBlur = 0;
   }
 
   // ── 密度选择 ──────────────────────────────────────
 
   function showDensityPanel() {
     var panel = document.getElementById('densityPanel');
-    if (panel) panel.style.display = 'block';
+    if (panel) panel.style.display = 'grid';
   }
 
   function setupDensityListeners() {
@@ -239,218 +454,6 @@
         recomputeDerivedState();
       });
     });
-  }
-
-  // ── 变奏选择 ──────────────────────────────────────
-
-  function showVariationPanel() {
-    var panel = document.getElementById('variationPanel');
-    if (panel) panel.style.display = 'block';
-  }
-
-  function setupVariationListeners() {
-    var btns = document.querySelectorAll('.variation-btn');
-    btns.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var v = btn.dataset.variation;
-        STATE.choices.variation = v;
-        btns.forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        recomputeDerivedState();
-        updateNextButton();
-      });
-    });
-  }
-
-  // ── Pattern 编辑器 ────────────────────────────────
-
-  var PATTERN_PADS = ['D', 'F', 'J', 'K'];
-  var PATTERN_STEPS = 8;
-  var PATTERN_LABELS = {
-    D: 'D  Main Bass',
-    F: 'F  Growl',
-    J: 'J  Drum Fill',
-    K: 'K  Chord'
-  };
-  var PATTERN_STEP_HEADERS = ['1', '&', '2', '&', '3', '&', '4', '&'];
-  var patternCursor = 0;
-
-  function showPatternPanel() {
-    var panel = document.getElementById('patternPanel');
-    if (panel) panel.style.display = 'block';
-    renderPatternGrid();
-  }
-
-  function renderPatternGrid() {
-    var grid = document.getElementById('patternGrid');
-    if (!grid) return;
-    grid.innerHTML = '';
-
-    // 步骤表头：1 & 2 & 3 & 4 &
-    var empty = document.createElement('div');
-    empty.className = 'pad-label';
-    grid.appendChild(empty);
-    for (var s = 0; s < PATTERN_STEPS; s++) {
-      var header = document.createElement('div');
-      header.className = 'step-header';
-      header.textContent = PATTERN_STEP_HEADERS[s];
-      grid.appendChild(header);
-    }
-
-    // 每行一个 Pad
-    for (var r = 0; r < PATTERN_PADS.length; r++) {
-      var pad = PATTERN_PADS[r];
-      var label = document.createElement('div');
-      label.className = 'pad-label';
-      label.textContent = PATTERN_LABELS[pad];
-      grid.appendChild(label);
-
-      for (var c = 0; c < PATTERN_STEPS; c++) {
-        var cell = document.createElement('div');
-        cell.className = 'pad-cell';
-        cell.dataset.pad = pad;
-        cell.dataset.step = c;
-        if (isPatternCellActive(pad, c)) cell.classList.add('active');
-        cell.addEventListener('click', function () {
-          togglePatternCell(this.dataset.pad, parseInt(this.dataset.step, 10));
-        });
-        grid.appendChild(cell);
-      }
-    }
-  }
-
-  function isPatternCellActive(pad, step) {
-    for (var i = 0; i < STATE.performance.events.length; i++) {
-      if (STATE.performance.events[i].pad === pad && STATE.performance.events[i].step === step) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function togglePatternCell(pad, step) {
-    var found = -1;
-    for (var i = 0; i < STATE.performance.events.length; i++) {
-      if (STATE.performance.events[i].pad === pad && STATE.performance.events[i].step === step) {
-        found = i;
-        break;
-      }
-    }
-    if (found >= 0) {
-      STATE.performance.events.splice(found, 1);
-    } else {
-      STATE.performance.events.push({ step: step, pad: pad });
-      STATE.performance.events.sort(function (a, b) {
-        return a.step - b.step;
-      });
-    }
-    // 预览声音
-    AE.previewChoice('drop', pad);
-    updatePatternGrid();
-    recomputeDerivedState();
-    updateNextButton();
-  }
-
-  function patternKeyAction(pad) {
-    // 键盘 D/F/J/K：在当前 cursor 位置切换，然后前进
-    togglePatternCell(pad, patternCursor);
-    patternCursor = (patternCursor + 1) % PATTERN_STEPS;
-    highlightCursor();
-  }
-
-  function highlightCursor() {
-    var cells = document.querySelectorAll('.pad-cell');
-    cells.forEach(function (cell) {
-      cell.classList.remove('playing');
-    });
-    var active = document.querySelectorAll('.pad-cell[data-step="' + patternCursor + '"]');
-    active.forEach(function (cell) {
-      cell.classList.add('playing');
-    });
-    setTimeout(function () {
-      active.forEach(function (cell) {
-        cell.classList.remove('playing');
-      });
-    }, 200);
-  }
-
-  function updatePatternGrid() {
-    var cells = document.querySelectorAll('.pad-cell');
-    cells.forEach(function (cell) {
-      var pad = cell.dataset.pad;
-      var step = parseInt(cell.dataset.step, 10);
-      cell.classList.toggle('active', isPatternCellActive(pad, step));
-    });
-  }
-
-  function setupPatternListeners() {
-    var clearBtn = document.getElementById('clearPattern');
-    var playBtn = document.getElementById('playPattern');
-    var stopBtn = document.getElementById('stopPattern');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', function () {
-        STATE.performance.events = [];
-        patternCursor = 0;
-        AE.stopPattern();
-        updatePatternGrid();
-        clearPlayhead();
-        if (stopBtn) stopBtn.style.display = 'none';
-        if (playBtn) playBtn.style.display = '';
-        recomputeDerivedState();
-        updateNextButton();
-      });
-    }
-    if (playBtn) {
-      playBtn.addEventListener('click', function () {
-        if (STATE.performance.events.length === 0) return;
-        var bpm = getBpm();
-        AE.playPattern(STATE.performance.events, bpm, movePlayhead, function () {
-          // 自然结束回调：恢复 UI
-          playBtn.style.display = '';
-          if (stopBtn) stopBtn.style.display = 'none';
-          clearPlayhead();
-        });
-        playBtn.style.display = 'none';
-        if (stopBtn) stopBtn.style.display = '';
-      });
-    }
-    if (stopBtn) {
-      stopBtn.addEventListener('click', function () {
-        AE.stopPattern();
-        stopBtn.style.display = 'none';
-        if (playBtn) playBtn.style.display = '';
-        clearPlayhead();
-      });
-    }
-  }
-
-  function movePlayhead(step) {
-    clearPlayhead();
-    var cells = document.querySelectorAll('.pad-cell[data-step="' + step + '"]');
-    cells.forEach(function (cell) {
-      cell.classList.add('playhead');
-    });
-    // 最后一步后清除
-    if (step === 7) {
-      setTimeout(clearPlayhead, 200);
-    }
-  }
-
-  function clearPlayhead() {
-    var cells = document.querySelectorAll('.pad-cell.playhead');
-    cells.forEach(function (cell) {
-      cell.classList.remove('playhead');
-    });
-  }
-
-  // 清理 Pattern 试听状态并恢复 UI
-  function cleanupPatternUI() {
-    AE.stopPattern();
-    clearPlayhead();
-    var playPatBtn = document.getElementById('playPattern');
-    var stopPatBtn = document.getElementById('stopPattern');
-    if (playPatBtn) playPatBtn.style.display = '';
-    if (stopPatBtn) stopPatBtn.style.display = 'none';
   }
 
   function getBpm() {
@@ -467,23 +470,48 @@
   // ── Music Workbench ────────────────────────────────
 
   var wbRafId = null;
+  var visualStarted = false;
+  var visualHudTick = 0;
 
   function showWorkbench() {
-    if (dom.workbench) dom.workbench.style.display = 'flex';
+    if (dom.app) dom.app.classList.add('visual-active');
+    if (dom.workbench) dom.workbench.style.display = 'grid';
     // 连接可视化到真实 Analyser
     var an = AE.getAnalyser();
     if (an && dom.wbCanvas) {
       VIZ.setAnalyser(an);
-      VIZ.start(dom.wbCanvas, an);
+      if (!visualStarted) {
+        VIZ.start(dom.wbCanvas, an);
+        visualStarted = true;
+      }
     }
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
     // 启动位置更新（确保只有一个 RAF）
     if (!wbRafId) updateWorkbenchDisplay();
   }
 
   function hideWorkbench() {
     if (dom.workbench) dom.workbench.style.display = 'none';
+    if (dom.app) dom.app.classList.remove('visual-active');
     if (wbRafId) { cancelAnimationFrame(wbRafId); wbRafId = null; }
     VIZ.stop();
+    visualStarted = false;
+  }
+
+  function getFinalVisualSection(progress) {
+    if (progress < 0.13) return 'intro';
+    if (progress < 0.35) return 'build';
+    if (progress < 0.40) return 'predrop';
+    if (progress < 0.67) return 'dropA';
+    if (progress < 0.92) return 'dropB';
+    return 'outro';
+  }
+
+  function updateVisualHud() {
+    if (!VIZ.getMetrics) return;
+    var visual = VIZ.getMetrics();
+    if (dom.visualSceneLabel) dom.visualSceneLabel.textContent = visual.sceneLabel || 'DESTINY SIGNAL';
+    if (dom.visualSectionLabel) dom.visualSectionLabel.textContent = visual.sectionLabel || 'CREATION LOOP';
   }
 
   function updateWorkbenchDisplay() {
@@ -491,13 +519,18 @@
     var isFinalPlaying = AE.getIsFinalSongPlaying ? AE.getIsFinalSongPlaying() : false;
 
     if (isFinalPlaying) {
-      if (dom.wbBpm) dom.wbBpm.textContent = getBpm() + ' BPM';
-      if (dom.wbPosition) dom.wbPosition.textContent = 'PLAYING';
+      var finalPosition = AE.getFinalSongPosition ? AE.getFinalSongPosition() : null;
+      var finalProgress = finalPosition && typeof finalPosition.progress === 'number' ? finalPosition.progress : 0;
+      var finalSection = finalPosition && finalPosition.section ? finalPosition.section : getFinalVisualSection(finalProgress);
+      if (VIZ.setPlayback) VIZ.setPlayback({ isFinal: true, progress: finalProgress, section: finalSection });
+      if (dom.wbBpm) dom.wbBpm.textContent = (AE.getBpm ? AE.getBpm() : getBpm()) + ' BPM';
+      if (dom.wbPosition) dom.wbPosition.textContent = Math.round(finalProgress * 100) + '%';
       if (dom.wbPlayPause) {
         dom.wbPlayPause.classList.add('playing');
         dom.wbPlayPause.disabled = true;
       }
     } else {
+      if (VIZ.setPlayback) VIZ.setPlayback({ isFinal: false, progress: 0, section: 'creation' });
       var bpm = AE.getBpm ? AE.getBpm() : null;
       if (bpm && dom.wbBpm) dom.wbBpm.textContent = bpm + ' BPM';
 
@@ -514,6 +547,9 @@
         dom.wbPlayPause.classList.toggle('playing', playing);
       }
     }
+
+    visualHudTick = (visualHudTick + 1) % 4;
+    if (visualHudTick === 0) updateVisualHud();
 
     wbRafId = requestAnimationFrame(updateWorkbenchDisplay);
   }
@@ -538,6 +574,50 @@
         togglePlayPause();
       });
     }
+
+    if (dom.visualModeBtn) {
+      dom.visualModeBtn.addEventListener('click', function () {
+        var mode = VIZ.cycleMode ? VIZ.cycleMode() : 'auto';
+        dom.visualModeBtn.textContent = String(mode || 'auto').toUpperCase();
+      });
+    }
+
+    if (dom.visualFullscreenBtn && dom.workbench) {
+      dom.visualFullscreenBtn.addEventListener('click', function () {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else if (dom.workbench.requestFullscreen) {
+          dom.workbench.requestFullscreen();
+        }
+      });
+
+      var cursorTimer = null;
+      dom.workbench.addEventListener('mousemove', function () {
+        dom.workbench.classList.remove('cursor-hidden');
+        if (cursorTimer) clearTimeout(cursorTimer);
+        if (document.fullscreenElement === dom.workbench) {
+          cursorTimer = setTimeout(function () {
+            dom.workbench.classList.add('cursor-hidden');
+          }, 1800);
+        }
+      });
+      document.addEventListener('fullscreenchange', function () {
+        if (document.fullscreenElement !== dom.workbench) dom.workbench.classList.remove('cursor-hidden');
+        setTimeout(function () { VIZ.resize(); }, 60);
+      });
+    }
+  }
+
+  function dockWorkbenchForPhase(phase) {
+    if (!dom.workbench || !dom.studioShell || !dom.main) return;
+    if (phase === 'bassForge' && dom.synthVisualDock) {
+      if (dom.workbench.parentNode !== dom.synthVisualDock) dom.synthVisualDock.appendChild(dom.workbench);
+      dom.workbench.classList.add('synth-docked');
+    } else {
+      if (dom.workbench.parentNode !== dom.studioShell) dom.studioShell.insertBefore(dom.workbench, dom.main);
+      dom.workbench.classList.remove('synth-docked');
+    }
+    setTimeout(function () { VIZ.resize(); }, 40);
   }
 
   function goToPhase(phase) {
@@ -551,25 +631,19 @@
       dom.sections[phase].classList.add('active');
     }
 
-    // Footer 显示控制
-    dom.footer.style.display = (phase === 'intro') ? 'none' : 'block';
+    if (dom.app) dom.app.setAttribute('data-phase', phase);
+    dockWorkbenchForPhase(phase);
+    if (phase === 'intro') hideWorkbench();
+    else showWorkbench();
+    if (dom.app && phase !== 'result') dom.app.removeAttribute('data-ending-style');
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
 
     // 进度点
     updateProgressDots();
 
-    // 阶段标签
-    var labels = {
-      soundWorld: '阶段 1/5 · 声音世界',
-      bassForge: '阶段 2/5 · Bass Forge',
-      groove: '阶段 3/5 · Groove Lab',
-      arrangement: '阶段 4/5 · Arrangement',
-      liveDrop: '阶段 5/5 · Live Drop',
-      result: '结算'
-    };
-    dom.phaseLabel.textContent = labels[phase] || '';
-
     // 滚动到顶部
     window.scrollTo(0, 0);
+    if (dom.main) dom.main.scrollTop = 0;
 
     // 结果页特殊处理
     if (phase === 'result') {
@@ -578,25 +652,13 @@
 
     // 重新渲染选项（恢复选中状态）
     if (phase === 'soundWorld') renderOptions('soundWorldOptions', 'soundWorld');
-    if (phase === 'bassForge') {
-      renderOptions('bassPersonalityOptions', 'bassPersonality');
-      if (STATE.choices.bassPersonality) {
-        showMacroPanel();
-      }
-    }
-    if (phase === 'groove') {
+    if (phase === 'bassCore') renderOptions('bassPersonalityOptions', 'bassPersonality');
+    if (phase === 'rhythm') {
       renderOptions('rhythmOptions', 'rhythm');
-      if (STATE.choices.rhythm) showDensityPanel();
       updateDensityUI();
     }
-    if (phase === 'arrangement') {
-      renderOptions('structureOptions', 'structure');
-      if (STATE.choices.structure) showVariationPanel();
-      updateVariationUI();
-    }
-    if (phase === 'liveDrop') {
-      renderOptions('dropOptions', 'drop');
-      if (STATE.choices.drop) showPatternPanel();
+    if (phase === 'bassForge') {
+      showMacroPanel();
     }
 
     updateNextButton();
@@ -631,11 +693,10 @@
     var idx = PHASES.indexOf(STATE.phase);
     if (idx < 0 || idx >= PHASES.length - 1) return;
 
-    // Live Drop → Result：标记演奏完成，清理 Pattern 试听
-    if (STATE.phase === 'liveDrop') {
-      if (STATE.performance.events.length === 0) return;
+    // Bass Forge → Result：Bass 参数完成后自动推导编排与 Drop 倾向
+    if (STATE.phase === 'bassForge') {
+      syncBassDrivenSongChoices();
       STATE.performance.completed = true;
-      cleanupPatternUI();
       recomputeDerivedState();
     }
 
@@ -663,10 +724,7 @@
   function restart() {
     AE.stop();
     STATE = createInitialState();
-    patternCursor = 0;
     hideWorkbench();
-    // 清理 Pattern 和按钮状态
-    cleanupPatternUI();
     // 重置最终歌曲按钮状态
     var playSongBtn = document.getElementById('playSong');
     var stopSongBtn = document.getElementById('stopSong');
@@ -676,6 +734,8 @@
     VIZ.setTheme('default');
     VIZ.setIntensity(0.5);
     VIZ.setAnalyser(null);
+    if (VIZ.setPlayback) VIZ.setPlayback({ isFinal: false, progress: 0, section: 'creation' });
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
   }
 
   // ── 导航按钮状态 ──────────────────────────────────
@@ -689,17 +749,14 @@
         canProceed = !!STATE.choices.soundWorld;
         break;
       case 'bassForge':
-        canProceed = !!STATE.choices.bassPersonality && hasMacroAdjusted();
+        canProceed = hasMacroAdjusted();
+        if (nextBtn) nextBtn.textContent = '铸造结局 →';
         break;
-      case 'groove':
+      case 'bassCore':
+        canProceed = !!STATE.choices.bassPersonality;
+        break;
+      case 'rhythm':
         canProceed = !!STATE.choices.rhythm;
-        break;
-      case 'arrangement':
-        canProceed = !!STATE.choices.structure && !!STATE.choices.variation;
-        break;
-      case 'liveDrop':
-        canProceed = !!STATE.choices.drop && STATE.performance.events.length > 0;
-        if (nextBtn) nextBtn.textContent = '完成演奏 →';
         break;
       default:
         canProceed = true;
@@ -715,19 +772,27 @@
   }
 
   function hasMacroAdjusted() {
-    var preset = D.BASS_PRESETS[STATE.choices.bassPersonality];
+    var preset = D.SYNTH_PRESETS && D.SYNTH_PRESETS[STATE.choices.bassPersonality];
     if (!preset) return false;
-    return STATE.bassMacros.body !== preset.body ||
-           STATE.bassMacros.growl !== preset.growl ||
-           STATE.bassMacros.wobble !== preset.wobble ||
-           STATE.bassMacros.space !== preset.space;
+    return ['waveform', 'oscB', 'oscMix', 'detune', 'filterType', 'filterEnv',
+      'sub', 'fm', 'cutoff', 'resonance', 'drive', 'attack', 'release',
+      'rate', 'depth', 'lfoShape', 'lfoTarget', 'space']
+      .some(function (param) { return STATE.synthParams[param] !== preset[param]; });
   }
 
   // ── 派生状态重算 ──────────────────────────────────
 
+  function syncBassDrivenSongChoices() {
+    if (!SE.deriveBassDrivenChoices) return;
+    var derived = SE.deriveBassDrivenChoices(STATE);
+    STATE.choices.structure = derived.structure;
+    STATE.choices.variation = derived.variation;
+    STATE.choices.drop = derived.drop;
+  }
+
   function recomputeDerivedState() {
+    syncBassDrivenSongChoices();
     STATE.dna = SE.computeDna(STATE);
-    renderDNABars();
 
     // 实时更新正在播放的 Loop 参数（平滑更新，不重建 AudioContext）
     AE.applyState(STATE);
@@ -737,34 +802,7 @@
     DNA_AXES.forEach(function (a) { avg += STATE.dna[a]; });
     avg /= DNA_AXES.length;
     VIZ.setIntensity(avg / 100);
-  }
-
-  // ── DNA 条渲染 ────────────────────────────────────
-
-  function renderDNABars() {
-    if (!dom.dnaBars) return;
-    dom.dnaBars.innerHTML = '';
-    DNA_AXES.forEach(function (axis) {
-      var bar = document.createElement('div');
-      bar.className = 'dna-bar';
-      var name = document.createElement('div');
-      name.className = 'dna-name';
-      name.textContent = DNA_LABELS[axis];
-      var track = document.createElement('div');
-      track.className = 'dna-track';
-      var fill = document.createElement('div');
-      fill.className = 'dna-fill';
-      fill.style.width = STATE.dna[axis] + '%';
-      fill.style.background = DNA_COLORS[axis];
-      track.appendChild(fill);
-      var val = document.createElement('div');
-      val.className = 'dna-val';
-      val.textContent = Math.round(STATE.dna[axis]);
-      bar.appendChild(name);
-      bar.appendChild(track);
-      bar.appendChild(val);
-      dom.dnaBars.appendChild(bar);
-    });
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
   }
 
   // ── 结算页渲染 ────────────────────────────────────
@@ -772,6 +810,9 @@
   function renderResult() {
     STATE.result = SE.evaluate(STATE);
     var r = STATE.result;
+    if (dom.app) dom.app.setAttribute('data-ending-style', r.isHidden ? 'destinyFusion' : r.primaryStyle);
+    if (VIZ.setExperienceState) VIZ.setExperienceState(STATE);
+    if (AE.preloadEnding) AE.preloadEnding(r.primaryStyle);
     var html = '';
 
     // 主风格
@@ -780,34 +821,55 @@
     var secondaryLabel = D.STYLE_PROFILES[r.secondaryStyle] ? D.STYLE_PROFILES[r.secondaryStyle].label : r.secondaryStyle;
 
     html += '<div class="result-style">';
-    html += '<div class="style-label">你的风格</div>';
+    html += '<div class="style-label">FINAL OUTPUT</div>';
     html += '<div class="style-name">' + escapeHtml(primaryLabel) + '</div>';
     if (!r.isHidden) {
       html += '<div class="style-secondary">with ' + escapeHtml(secondaryLabel) + ' influence</div>';
     } else {
-      html += '<div class="hidden-badge">⚡ HIDDEN ENDING UNLOCKED</div>';
+      html += '<div class="hidden-badge">HIDDEN ENDING</div>';
     }
     html += '</div>';
 
-    // DNA 雷达图 + 得分
-    html += '<div class="result-body">';
-    html += '<div class="result-radar">';
-    html += '<h4 style="font-size:0.85rem;color:var(--text-dim);margin-bottom:8px;">DNA 雷达图</h4>';
-    html += renderRadarSVG(r.dna, r.primaryStyle);
-    html += '</div>';
-    html += '<div class="result-scores">';
-    html += '<h4>风格得分</h4>';
-    html += renderScoreBars(r);
-    html += '</div>';
+    var resultTraits = [
+      { label: 'STRUCTURE', key: 'structure' },
+      { label: 'MOTION', key: 'variation' },
+      { label: 'IMPACT', key: 'drop' }
+    ];
+    html += '<div class="result-signature">';
+    resultTraits.forEach(function (trait) {
+      var value = STATE.choices[trait.key];
+      var option = D.CHOICES[trait.key] && D.CHOICES[trait.key][value];
+      html += '<div class="result-trait"><span>' + trait.label + '</span><strong>' + escapeHtml(option ? option.label : value) + '</strong></div>';
+    });
     html += '</div>';
 
     // 观众反应
     html += '<div class="result-reaction">';
-    html += '<div class="reaction-label">观众反应</div>';
+    html += '<div class="reaction-label">CROWD READOUT</div>';
     html += '<div class="reaction-text">' + escapeHtml(r.audienceReaction) + '</div>';
     html += '</div>';
 
     dom.resultContent.innerHTML = html;
+  }
+
+  function showFinalSongError(message) {
+    var existing = document.getElementById('finalSongError');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'finalSongError';
+      existing.className = 'final-song-error';
+      dom.resultContent.appendChild(existing);
+    }
+    existing.textContent = message || '新的结局伴奏加载失败。';
+    existing.style.display = '';
+  }
+
+  function clearFinalSongError() {
+    var existing = document.getElementById('finalSongError');
+    if (existing) {
+      existing.textContent = '';
+      existing.style.display = 'none';
+    }
   }
 
   function renderRadarSVG(dna, primaryStyle) {
@@ -841,23 +903,23 @@
         var ga = (Math.PI * 2 * gi / n) - Math.PI / 2;
         gp.push((cx + Math.cos(ga) * gr).toFixed(1) + ',' + (cy + Math.sin(ga) * gr).toFixed(1));
       }
-      svg += '<polygon points="' + gp.join(' ') + '" fill="none" stroke="#2a2a44" stroke-width="1"/>';
+        svg += '<polygon points="' + gp.join(' ') + '" fill="none" stroke="#4b2415" stroke-width="1"/>';
     }
     // 轴线
     for (var ai = 0; ai < n; ai++) {
       var aa = (Math.PI * 2 * ai / n) - Math.PI / 2;
-      svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + (cx + Math.cos(aa) * maxR).toFixed(1) + '" y2="' + (cy + Math.sin(aa) * maxR).toFixed(1) + '" stroke="#2a2a44" stroke-width="1"/>';
+      svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + (cx + Math.cos(aa) * maxR).toFixed(1) + '" y2="' + (cy + Math.sin(aa) * maxR).toFixed(1) + '" stroke="#4b2415" stroke-width="1"/>';
     }
     // 理想轮廓
     if (idealPoints.length > 0) {
-      svg += '<polygon points="' + idealPoints.join(' ') + '" fill="none" stroke="#ff00aa" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.6"/>';
+      svg += '<polygon points="' + idealPoints.join(' ') + '" fill="none" stroke="#D72F19" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.85"/>';
     }
     // 用户 DNA
-    svg += '<polygon points="' + points.join(' ') + '" fill="rgba(0,255,204,0.15)" stroke="#00ffcc" stroke-width="2"/>';
+    svg += '<polygon points="' + points.join(' ') + '" fill="rgba(255,206,0,0.14)" stroke="#FFCE00" stroke-width="2"/>';
     // 数据点
     for (var pi = 0; pi < n; pi++) {
       var p = points[pi].split(',');
-      svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="#00ffcc"/>';
+      svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="#FFCE00"/>';
     }
     // 标签
     for (var li = 0; li < n; li++) {
@@ -865,7 +927,7 @@
       var lr = maxR + 18;
       var lx = cx + Math.cos(la) * lr;
       var ly = cy + Math.sin(la) * lr;
-      svg += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#8888aa">' + DNA_LABELS[DNA_AXES[li]] + '</text>';
+      svg += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#BFA98B">' + DNA_LABELS[DNA_AXES[li]] + '</text>';
     }
     svg += '</svg>';
     return svg;
@@ -918,19 +980,14 @@
 
       // Enter = 下一步
       if (key === 'enter') {
-        var nextBtn = dom.sections[STATE.phase] && dom.sections[STATE.phase].querySelector('[data-next]');
-        if (nextBtn && !nextBtn.disabled) { goNext(); e.preventDefault(); }
-        return;
-      }
-
-      // D/F/J/K = Pattern 演奏（仅 Live Drop 阶段）
-      if (STATE.phase === 'liveDrop' && STATE.choices.drop) {
-        var pad = key.toUpperCase();
-        if (PATTERN_PADS.indexOf(pad) >= 0) {
-          patternKeyAction(pad);
+        if (STATE.phase === 'intro') {
+          startExperience();
           e.preventDefault();
           return;
         }
+        var nextBtn = dom.sections[STATE.phase] && dom.sections[STATE.phase].querySelector('[data-next]');
+        if (nextBtn && !nextBtn.disabled) { goNext(); e.preventDefault(); }
+        return;
       }
 
       // 数字键 = 选择选项
@@ -939,10 +996,8 @@
         if (num >= 1 && num <= 4) {
           var phaseMap = {
             soundWorld: 'soundWorld',
-            bassForge: 'bassPersonality',
-            groove: 'rhythm',
-            arrangement: 'structure',
-            liveDrop: 'drop'
+            bassCore: 'bassPersonality',
+            rhythm: 'rhythm'
           };
           var phase = phaseMap[STATE.phase];
           if (phase) {
@@ -960,6 +1015,12 @@
 
   // ── 导航按钮绑定 ──────────────────────────────────
 
+  function startExperience() {
+    if (STATE.phase !== 'intro') return;
+    AE.start(STATE);
+    goToPhase('soundWorld');
+  }
+
   function setupNavButtons() {
     // 通用 next/back
     document.querySelectorAll('[data-next]').forEach(function (btn) {
@@ -969,11 +1030,12 @@
       btn.addEventListener('click', goBack);
     });
 
-    // Start
-    if (dom.startBtn) {
-      dom.startBtn.addEventListener('click', function () {
-        AE.start(STATE);
-        goToPhase('soundWorld');
+    // Intro: click anywhere except the mute control.
+    if (dom.app) {
+      dom.app.addEventListener('click', function (event) {
+        if (STATE.phase !== 'intro') return;
+        if (event.target.closest && event.target.closest('#muteBtn')) return;
+        startExperience();
       });
     }
 
@@ -990,16 +1052,23 @@
     if (playSongBtn) {
       playSongBtn.addEventListener('click', function () {
         if (AE.getIsFinalSongPlaying && AE.getIsFinalSongPlaying()) return;
-        // 清理 Pattern 试听状态
-        cleanupPatternUI();
+        clearFinalSongError();
         // playFinalSong 内部会暂停 Loop，播放最终作品
         playSongBtn.style.display = 'none';
         if (stopSongBtn) stopSongBtn.style.display = '';
-        AE.playFinalSong(STATE, function () {
+        var playback = AE.playFinalSong(STATE, function () {
           // 播放完成回调：恢复按钮状态
           playSongBtn.style.display = '';
           if (stopSongBtn) stopSongBtn.style.display = 'none';
         });
+        if (playback && typeof playback.then === 'function') {
+          playback.then(function (started) {
+            if (started) return;
+            playSongBtn.style.display = '';
+            if (stopSongBtn) stopSongBtn.style.display = 'none';
+            showFinalSongError(AE.getFinalSongError ? AE.getFinalSongError() : null);
+          });
+        }
       });
     }
     if (stopSongBtn) {
@@ -1016,30 +1085,148 @@
       backToModifyBtn.addEventListener('click', function () {
         // 停止最终作品
         AE.stopFinalSong();
-        // 清理 Pattern 试听
-        cleanupPatternUI();
+        STATE.result = null;
         // 恢复 Loop
         AE.start(STATE);
         showWorkbench();
         if (playSongBtn) playSongBtn.style.display = '';
         if (stopSongBtn) stopSongBtn.style.display = 'none';
-        goToPhase('liveDrop');
+        goToPhase('bassForge');
       });
     }
+  }
+
+  // ── Intro pointer glitch ───────────────────────────
+
+  function setupIntroGlitch() {
+    var canvas = dom.introCanvas;
+    var intro = dom.sections.intro;
+    if (!canvas || !intro) return;
+    var context = canvas.getContext('2d');
+    var pendingBurst = null;
+    var drawRaf = null;
+    var clearTimer = null;
+    var lastSpawn = 0;
+    var canvasCssWidth = 0;
+    var canvasCssHeight = 0;
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function resizeIntroCanvas() {
+      var rect = intro.getBoundingClientRect();
+      var ratio = Math.min(3, window.devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      canvasCssWidth = rect.width;
+      canvasCssHeight = rect.height;
+    }
+
+    function seeded(seed) {
+      var value = seed || 1;
+      return function () {
+        value = (value * 1664525 + 1013904223) >>> 0;
+        return value / 4294967296;
+      };
+    }
+
+    function spawn(event) {
+      if (reduced || STATE.phase !== 'intro') return;
+      var now = performance.now();
+      var rect = intro.getBoundingClientRect();
+      if (Math.abs(rect.width - canvasCssWidth) > 1 || Math.abs(rect.height - canvasCssHeight) > 1) {
+        resizeIntroCanvas();
+        rect = intro.getBoundingClientRect();
+      }
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
+      if (now - lastSpawn < 170) return;
+      lastSpawn = now;
+      var speed = Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0);
+      pendingBurst = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+        seed: ((event.clientX * 73856093) ^ (event.clientY * 19349663) ^ Math.floor(now)) >>> 0,
+        width: 84 + Math.min(230, speed * 5.5),
+        amp: 7 + Math.min(30, speed * 0.9)
+      };
+      if (!drawRaf) drawRaf = requestAnimationFrame(drawIntroGlitch);
+    }
+
+    function drawIntroGlitch() {
+      drawRaf = null;
+      if (!pendingBurst) return;
+      var rect = intro.getBoundingClientRect();
+      var burst = pendingBurst;
+      pendingBurst = null;
+      context.clearRect(0, 0, rect.width, rect.height);
+      context.save();
+      context.globalCompositeOperation = 'multiply';
+      context.lineCap = 'butt';
+      context.lineJoin = 'miter';
+
+      var random = seeded(burst.seed);
+      var left = burst.x - burst.width / 2;
+      var colors = ['rgba(77,0,14,0.72)', 'rgba(116,0,22,0.48)', 'rgba(35,0,8,0.34)'];
+      for (var layer = 0; layer < 3; layer++) {
+        var segments = 34 + layer * 8;
+        var layerY = burst.y + (layer - 1) * 4;
+        context.strokeStyle = colors[layer];
+        context.lineWidth = 0.85 + layer * 0.7;
+        context.setLineDash(layer === 2 ? [5, 3] : []);
+        context.beginPath();
+        for (var i = 0; i <= segments; i++) {
+          var px = left + i / segments * burst.width;
+          var tooth = (i % 2 ? -1 : 1) * burst.amp * (0.18 + random() * 0.82);
+          var py = Math.round((layerY + tooth + (random() - 0.5) * 3.5) * 2) / 2;
+          if (!i) context.moveTo(px, py); else context.lineTo(px, py);
+        }
+        context.stroke();
+      }
+      context.setLineDash([]);
+
+      for (var slice = 0; slice < 13; slice++) {
+        var sw = 3 + random() * Math.min(46, burst.width * 0.18);
+        var sx = left + random() * Math.max(1, burst.width - sw);
+        var sy = burst.y + (random() - 0.5) * burst.amp * 2.4;
+        context.fillStyle = slice % 3 === 0 ? 'rgba(44,0,9,0.48)' : 'rgba(104,0,20,0.28)';
+        context.fillRect(Math.round(sx), Math.round(sy), Math.max(1, Math.round(sw)), 1 + Math.floor(random() * 3));
+      }
+      context.fillStyle = 'rgba(72,0,15,0.3)';
+      for (var toothIndex = 0; toothIndex < 9; toothIndex++) {
+        var tx = left + random() * burst.width;
+        var th = 3 + random() * burst.amp * 0.9;
+        context.fillRect(Math.round(tx), Math.round(burst.y - th / 2), 1, Math.round(th));
+      }
+      context.restore();
+
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(function () {
+        var currentRect = intro.getBoundingClientRect();
+        context.clearRect(0, 0, currentRect.width, currentRect.height);
+        clearTimer = null;
+      }, 120);
+    }
+
+    document.addEventListener('pointermove', spawn, { passive: true });
+    document.addEventListener('pointerdown', spawn, { passive: true });
+    window.addEventListener('resize', resizeIntroCanvas);
+    resizeIntroCanvas();
+    requestAnimationFrame(resizeIntroCanvas);
+    setTimeout(resizeIntroCanvas, 80);
   }
 
   // ── 初始化 ────────────────────────────────────────
 
   function init() {
     cacheDom();
-    renderDNABars();
     setupMacroListeners();
+    setupForgeActions();
     setupDensityListeners();
-    setupVariationListeners();
-    setupPatternListeners();
     setupNavButtons();
     setupKeyboard();
     setupWorkbenchListeners();
+    setupIntroGlitch();
 
     // Intro 可视化不使用伪数据，仅设置主题
     VIZ.setTheme('default');
@@ -1056,8 +1243,6 @@
     renderOptions('soundWorldOptions', 'soundWorld');
     renderOptions('bassPersonalityOptions', 'bassPersonality');
     renderOptions('rhythmOptions', 'rhythm');
-    renderOptions('structureOptions', 'structure');
-    renderOptions('dropOptions', 'drop');
 
     goToPhase('intro');
   }
