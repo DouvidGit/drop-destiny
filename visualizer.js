@@ -73,11 +73,11 @@
   var padBursts = [];
 
   var THEMES = {
-    abyss:         { bg: '#EA0029', a: '#FFFFFF', b: '#202020', c: '#666666' },
-    neonCity:      { bg: '#EA0029', a: '#F4F4F4', b: '#242424', c: '#FFCE00' },
-    organicForest: { bg: '#EA0029', a: '#EADDD5', b: '#202020', c: '#5E5E5E' },
-    cosmicVoid:    { bg: '#EA0029', a: '#FFFFFF', b: '#2C2C2C', c: '#747474' },
-    default:       { bg: '#EA0029', a: '#FFFFFF', b: '#222222', c: '#686868' }
+    abyss:         { bg: '#EA0029', a: '#FFFFFF', b: '#5A0010', c: '#4A1118' },
+    neonCity:      { bg: '#EA0029', a: '#F4F4F4', b: '#620012', c: '#FFCE00' },
+    organicForest: { bg: '#EA0029', a: '#EADDD5', b: '#52000F', c: '#4A1118' },
+    cosmicVoid:    { bg: '#EA0029', a: '#FFFFFF', b: '#5A0010', c: '#54121C' },
+    default:       { bg: '#EA0029', a: '#FFFFFF', b: '#590010', c: '#4A1118' }
   };
 
   var PARTICLE_THEMES = {
@@ -89,12 +89,12 @@
   };
 
   var STYLE_PALETTES = {
-    riddimDubstep:  { a: '#FFFFFF', b: '#111111', c: '#666666' },
-    brostep:        { a: '#111111', b: '#FFFFFF', c: '#666666' },
-    hybridTrap:     { a: '#FFFFFF', b: '#252525', c: '#666666' },
-    bassHouse:      { a: '#FFFFFF', b: '#1D1D1D', c: '#FFCE00' },
+    riddimDubstep:  { a: '#FFFFFF', b: '#111111', c: '#52000F' },
+    brostep:        { a: '#111111', b: '#FFFFFF', c: '#650012' },
+    hybridTrap:     { a: '#FFFFFF', b: '#5A0010', c: '#4A1118' },
+    bassHouse:      { a: '#FFFFFF', b: '#620012', c: '#FFCE00' },
     melodicDubstep: { a: '#F6E7C1', b: '#3E7CB1', c: '#FFCE00' },
-    destinyFusion:  { a: '#FFFFFF', b: '#202020', c: '#FFCE00' }
+    destinyFusion:  { a: '#FFFFFF', b: '#590010', c: '#FFCE00' }
   };
 
   var STYLE_LABELS = {
@@ -192,7 +192,7 @@
     return {
       bg: base.bg,
       a: base.a,
-      b: colorMix(base.b, '#000000', 0.72 + drive * 0.28),
+      b: colorMix(base.b, '#000000', 0.18 + drive * 0.22),
       c: colorMix(base.c, '#000000', drive * 0.42)
     };
   }
