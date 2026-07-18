@@ -34,7 +34,7 @@ Drive 同时控制音频失真与视觉热度。Structure（编曲结构）、Va
 
 - 伴奏在 SuperCollider 中预渲染，包含鼓组、和声层、旋律层和配器，以 Base64 内嵌于 `ending-assets.js`。
 - 播放时创建 BufferSource 播放伴奏，同时使用用户的持久 Bass 链在 Drop 段落实时叠加主 Bass。
-- 结构为 2 bars Intro + 4 bars Build-up + 8 bars Drop（14 bars 总计），时长约 20–28 秒。
+- 结构为 2 bars Intro + 3 bars Build-up + 1 bar Pre-drop + 4 bars Drop A + 3 bars Drop B + 1 bar Final（14 bars 总计），时长约 20–28 秒；用户主 Bass 只覆盖 Drop A / B。
 - Drop 后半段行为由推导的 Variation 决定：Repeat 延续、Mutate 变奏、Lift 升调。
 
 ## 视觉
