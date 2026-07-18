@@ -60,6 +60,8 @@ async function inspect(page, expectedPhase) {
         selectionBackground: getComputedStyle(document.body, '::selection').backgroundColor,
         startButtonExists: !!document.getElementById('startBtn'),
         introTitle: document.querySelector('.intro-title').textContent.trim(),
+        introFontFamily: titleStyle.fontFamily,
+        tekoLoaded: document.fonts.check('700 32px Teko'),
         introTitleBoxWidth: title.getBoundingClientRect().width,
         introTitleTextWidth: titleMeasure.measureText(title.textContent.trim()).width,
         optionNumberCount: document.querySelectorAll('.opt-num').length
@@ -80,6 +82,9 @@ function assertSingleScreen(metrics) {
   }
   if (metrics.horizontalOverflow > 1) throw new Error(`${label}: horizontal overflow ${metrics.horizontalOverflow}px`);
   if (metrics.chrome.logo !== 'DROP' || metrics.chrome.introTitle !== 'DROP') throw new Error(`${label}: DROP branding mismatch`);
+  if (!metrics.chrome.introFontFamily.includes('Teko') || !metrics.chrome.tekoLoaded) {
+    throw new Error(`${label}: bundled Teko font did not load (${metrics.chrome.introFontFamily})`);
+  }
   if (metrics.expected === 'intro' && metrics.chrome.introTitleTextWidth > metrics.chrome.introTitleBoxWidth + 1) {
     throw new Error(`${label}: DROP hero text overflows (${metrics.chrome.introTitleTextWidth}/${metrics.chrome.introTitleBoxWidth})`);
   }

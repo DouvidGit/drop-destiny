@@ -31,6 +31,8 @@
   var logBands = new Float32Array(48);
   var bassHistory = [];
   var lastBeatAt = 0;
+  var lastPageFlashAt = 0;
+  var pageFlashVariant = false;
   var beatPulse = 0;
   var transitionFlash = 0;
   var theme = 'default';
@@ -71,20 +73,28 @@
   var padBursts = [];
 
   var THEMES = {
-    abyss:         { bg: '#030303', a: '#FFFFFF', b: '#A60019', c: '#5B0010' },
-    neonCity:      { bg: '#050505', a: '#F4F4F4', b: '#FF0033', c: '#FFCE00' },
-    organicForest: { bg: '#060303', a: '#EADDD5', b: '#B00020', c: '#6E0615' },
-    cosmicVoid:    { bg: '#010101', a: '#EA0029', b: '#FFFFFF', c: '#606060' },
-    default:       { bg: '#030303', a: '#FFFFFF', b: '#EA0029', c: '#5A0712' }
+    abyss:         { bg: '#EA0029', a: '#FFFFFF', b: '#5A0010', c: '#4A1118' },
+    neonCity:      { bg: '#EA0029', a: '#F4F4F4', b: '#620012', c: '#FFCE00' },
+    organicForest: { bg: '#EA0029', a: '#EADDD5', b: '#52000F', c: '#4A1118' },
+    cosmicVoid:    { bg: '#EA0029', a: '#FFFFFF', b: '#5A0010', c: '#54121C' },
+    default:       { bg: '#EA0029', a: '#FFFFFF', b: '#590010', c: '#4A1118' }
+  };
+
+  var PARTICLE_THEMES = {
+    abyss:         { a: '#FFFFFF', b: '#A60019', c: '#5B0010' },
+    neonCity:      { a: '#F4F4F4', b: '#FF0033', c: '#FFCE00' },
+    organicForest: { a: '#EADDD5', b: '#B00020', c: '#6E0615' },
+    cosmicVoid:    { a: '#EA0029', b: '#FFFFFF', c: '#606060' },
+    default:       { a: '#FFFFFF', b: '#EA0029', c: '#5A0712' }
   };
 
   var STYLE_PALETTES = {
-    riddimDubstep:  { a: '#FFFFFF', b: '#111111', c: '#EA0029' },
-    brostep:        { a: '#FF0033', b: '#FFFFFF', c: '#720014' },
-    hybridTrap:     { a: '#FFFFFF', b: '#EA0029', c: '#161616' },
-    bassHouse:      { a: '#FFFFFF', b: '#FF153B', c: '#FFCE00' },
+    riddimDubstep:  { a: '#FFFFFF', b: '#111111', c: '#52000F' },
+    brostep:        { a: '#111111', b: '#FFFFFF', c: '#650012' },
+    hybridTrap:     { a: '#FFFFFF', b: '#5A0010', c: '#4A1118' },
+    bassHouse:      { a: '#FFFFFF', b: '#620012', c: '#FFCE00' },
     melodicDubstep: { a: '#F6E7C1', b: '#3E7CB1', c: '#FFCE00' },
-    destinyFusion:  { a: '#FFFFFF', b: '#EA0029', c: '#FFCE00' }
+    destinyFusion:  { a: '#FFFFFF', b: '#590010', c: '#FFCE00' }
   };
 
   var STYLE_LABELS = {
@@ -180,11 +190,24 @@
       c: colorMix(world.c, style.c, 0.62)
     } : world;
     return {
-      bg: colorMix(base.bg, '#000000', 0.34 + drive * 0.42),
-      a: colorMix(base.a, '#FFFFFF', drive * 0.18),
-      b: colorMix(base.b, '#FF0033', drive * 0.82),
-      c: colorMix(base.c, '#FFFFFF', drive * 0.68)
+      bg: base.bg,
+      a: base.a,
+      b: colorMix(base.b, '#000000', 0.18 + drive * 0.22),
+      c: colorMix(base.c, '#000000', drive * 0.42)
     };
+  }
+
+  function getParticlePalette() {
+    return PARTICLE_THEMES[theme] || PARTICLE_THEMES.default;
+  }
+
+  function triggerPageFlash(color, now, force) {
+    if (reducedMotion || !document.body || now - lastPageFlashAt < (force ? 520 : 2200)) return;
+    lastPageFlashAt = now;
+    pageFlashVariant = !pageFlashVariant;
+    document.body.style.setProperty('--visual-flash-color', color || '#FFFFFF');
+    document.body.classList.remove('visual-page-flash-a', 'visual-page-flash-b');
+    document.body.classList.add(pageFlashVariant ? 'visual-page-flash-a' : 'visual-page-flash-b');
   }
 
   function ensureBuffers() {
@@ -307,8 +330,7 @@
     historyCanvas.height = cssHeight;
     frameCtx = frameCanvas.getContext('2d');
     historyCtx = historyCanvas.getContext('2d');
-    historyCtx.fillStyle = '#05050b';
-    historyCtx.fillRect(0, 0, cssWidth, cssHeight);
+    historyCtx.clearRect(0, 0, cssWidth, cssHeight);
     initParticles();
   }
 
@@ -326,9 +348,7 @@
     if (experience.phase === 'bassCore') return 'synth';
     if (experience.phase === 'rhythm') return 'rhythm';
     if (experience.phase === 'bassForge') return 'synth';
-    if (experience.phase === 'groove') return 'rhythm';
-    if (experience.phase === 'arrangement') return 'structure';
-    if (experience.phase === 'liveDrop' || experience.phase === 'result') return resolveStyle() || 'kaleido';
+    if (experience.phase === 'result') return resolveStyle() || 'kaleido';
     return 'world';
   }
 
@@ -337,11 +357,10 @@
     var phaseLabels = {
       intro: 'DESTINY SIGNAL', soundWorld: 'WORLD FREQUENCY', bassCore: 'CORE MATERIAL',
       rhythm: 'RHYTHM CHASSIS', bassForge: 'BASS OSCILLOSCOPE',
-      groove: 'GROOVE VECTOR GRID', arrangement: 'ARRANGEMENT ORBIT', liveDrop: 'LIVE DROP MATRIX',
       result: style ? STYLE_LABELS[style] : 'DESTINY RESOLUTION'
     };
     metrics.scene = scene;
-    metrics.sceneLabel = style && (experience.phase === 'liveDrop' || experience.phase === 'result' || playback.isFinal) ?
+    metrics.sceneLabel = style && (experience.phase === 'result' || playback.isFinal) ?
       STYLE_LABELS[style] : (phaseLabels[experience.phase] || 'DESTINY SIGNAL');
     metrics.sectionLabel = playback.isFinal ? (SECTION_LABELS[playback.section] || 'SONG / LIVE') : 'CREATION LOOP';
     metrics.mode = MANUAL_MODES[manualModeIndex];
@@ -558,34 +577,6 @@
     }
     ctx.restore();
     drawRadialSpectrum(ctx, w, h, time, palette, 0.06, rhythm === 'fourOnFloor' ? 4 : rhythm === 'breakbeat' ? 7 : 2);
-  }
-
-  function drawStructure(ctx, w, h, time, palette) {
-    var structure = experience.choices.structure || 'classicDrop';
-    var lanes = structure === 'epicJourney' ? 7 : structure === 'melodicNarrative' ? 5 : 4;
-    var cx = w / 2;
-    var cy = h / 2;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (var lane = 0; lane < lanes; lane++) {
-      var radius = Math.min(w, h) * (0.1 + lane * 0.065) + beatPulse * lane * 4;
-      var start = time * 0.0002 * (lane % 2 ? 1 : -1) + lane;
-      var span = Math.PI * (0.55 + (logBands[lane * 5] || 0) * 1.3);
-      ctx.strokeStyle = alphaColor(lane % 2 ? palette.a : palette.b, 0.12 + smooth.mid * 0.4);
-      ctx.lineWidth = 2 + (logBands[lane * 6] || 0) * 8;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, start, start + span);
-      ctx.stroke();
-    }
-    for (var marker = 0; marker < 24; marker++) {
-      var angle = marker / 24 * Math.PI * 2 + time * 0.0001;
-      var radius2 = Math.min(w, h) * (0.22 + (logBands[marker * 2] || 0) * 0.2);
-      ctx.fillStyle = alphaColor(marker % 3 ? palette.c : palette.b, 0.14 + smooth.treble * 0.45);
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(angle) * radius2, cy + Math.sin(angle) * radius2, 1 + (logBands[marker * 2] || 0) * 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
   }
 
   function drawRiddim(ctx, w, h, time, palette, mutate) {
@@ -859,8 +850,6 @@
       drawSynth(ctx, w, h, time, palette);
     } else if (scene === 'rhythm') {
       drawRhythm(ctx, w, h, time, palette);
-    } else if (scene === 'structure') {
-      drawStructure(ctx, w, h, time, palette);
     } else if (scene === 'build') {
       drawBuild(ctx, w, h, time, palette);
     } else if (scene === 'vacuum') {
@@ -892,6 +881,7 @@
     var scene = sceneForState();
     updateSceneMetadata(scene);
     var palette = getPalette();
+    var particlePalette = getParticlePalette();
     var w = cssWidth;
     var h = cssHeight;
     var drive = clamp(Number(experience.synth.drive == null ? 50 : experience.synth.drive) / 100, 0, 1);
@@ -899,10 +889,16 @@
     var dropBoost = experience.choices.drop === 'overload' ? 1.24 : experience.choices.drop === 'gentle' ? 0.78 : 1;
     energy *= dropBoost;
 
+    if (transitionFlash > 0.96 && playback.isFinal &&
+        (playback.section === 'predrop' || playback.section === 'dropA' || playback.section === 'dropB')) {
+      triggerPageFlash('#FFFFFF', now, true);
+    } else if (metrics.beat && smooth.bass > 0.72 && energy > 0.42) {
+      triggerPageFlash('#FFFFFF', now, false);
+    }
+
     frameCtx.setTransform(1, 0, 0, 1, 0, 0);
     frameCtx.globalCompositeOperation = 'source-over';
-    frameCtx.fillStyle = palette.bg;
-    frameCtx.fillRect(0, 0, w, h);
+    frameCtx.clearRect(0, 0, w, h);
 
     if (scene !== 'vacuum') {
       frameCtx.save();
@@ -915,11 +911,13 @@
       frameCtx.globalAlpha = reducedMotion ? 0.58 : (0.76 + clamp(((experience.dna.space || 50) - 50) / 300, -0.08, 0.1));
       frameCtx.drawImage(historyCanvas, 0, 0, w, h);
       frameCtx.restore();
-      frameCtx.fillStyle = alphaColor(palette.bg, 0.12 + (1 - energy) * 0.07);
+      frameCtx.globalCompositeOperation = 'destination-out';
+      frameCtx.fillStyle = 'rgba(0,0,0,' + (0.12 + (1 - energy) * 0.07) + ')';
       frameCtx.fillRect(0, 0, w, h);
+      frameCtx.globalCompositeOperation = 'source-over';
     }
 
-    if (scene !== 'vacuum' && scene !== 'afterglow') drawParticles(frameCtx, w, h, now, palette, energy, scene);
+    if (scene !== 'vacuum' && scene !== 'afterglow') drawParticles(frameCtx, w, h, now, particlePalette, energy, scene);
     renderScene(frameCtx, w, h, now, scene, palette);
     drawBrutalOverlay(frameCtx, w, h, now, palette, scene);
     drawPadBursts(frameCtx, w, h, palette);
@@ -934,8 +932,10 @@
     }
 
     if (transitionFlash > 0.01) {
-      frameCtx.fillStyle = alphaColor(palette.a, transitionFlash * 0.12);
-      frameCtx.fillRect(0, 0, w, h);
+      if (playback.isFinal) {
+        frameCtx.fillStyle = alphaColor('#FFFFFF', transitionFlash * 0.1);
+        frameCtx.fillRect(0, 0, w, h);
+      }
       transitionFlash *= 0.89;
     }
 
@@ -1024,10 +1024,6 @@
     return MODE_LABELS[MANUAL_MODES[manualModeIndex]];
   }
 
-  function getMode() {
-    return MANUAL_MODES[manualModeIndex];
-  }
-
   function getMetrics() {
     return {
       bass: metrics.bass, mid: metrics.mid, treble: metrics.treble, rms: metrics.rms,
@@ -1046,6 +1042,10 @@
     rafId = null;
     if (resizeObserver) resizeObserver.disconnect();
     resizeObserver = null;
+    if (document.body) {
+      document.body.classList.remove('visual-page-flash-a', 'visual-page-flash-b');
+      document.body.style.removeProperty('--visual-flash-color');
+    }
   }
 
   global.Visualizer = {
@@ -1057,7 +1057,6 @@
     setPlayback: setPlayback,
     pulsePad: pulsePad,
     cycleMode: cycleMode,
-    getMode: getMode,
     getMetrics: getMetrics,
     resize: resize,
     stop: stop

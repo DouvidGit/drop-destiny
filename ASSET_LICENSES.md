@@ -41,3 +41,10 @@ files so the experience remains self-contained when opened from `file://`.
 
 CC0 permits copying, modification, distribution, and commercial use without
 requesting additional permission.
+
+## Display font
+
+The interface embeds **Teko** as a local WOFF2 file at
+`assets/fonts/Teko.woff2`, so the project does not request an online font at
+runtime. Teko is distributed under the SIL Open Font License 1.1. The complete
+license text is included at `assets/fonts/OFL.txt`.

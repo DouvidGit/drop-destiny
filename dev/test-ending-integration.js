@@ -112,10 +112,31 @@ async function main() {
         !result.brostepDebug.synthParams || result.brostepDebug.synthParams.cutoff !== 1350) {
       throw new Error(`Brostep user bass params were not applied: ${JSON.stringify(result.brostepDebug)}`);
     }
+
+    function assertUserBassTimeline(label, debug) {
+      const beatDuration = 60 / debug.bpm;
+      const expectedStart = 6 * 4 * beatDuration;
+      const expectedEnd = 13 * 4 * beatDuration;
+      const tolerance = 0.01;
+      if (Math.abs(debug.userBassWindowStart - expectedStart) > tolerance ||
+          Math.abs(debug.userBassWindowEnd - expectedEnd) > tolerance) {
+        throw new Error(`${label} user bass window is not aligned to bars 6-13: ${JSON.stringify(debug)}`);
+      }
+      if (debug.userBassFirstNote < expectedStart - tolerance ||
+          debug.userBassFirstNote >= expectedEnd ||
+          debug.userBassLastNoteEnd <= expectedStart ||
+          debug.userBassLastNoteEnd > expectedEnd + tolerance) {
+        throw new Error(`${label} user bass notes escape the Drop window: ${JSON.stringify(debug)}`);
+      }
+    }
+
+    assertUserBassTimeline('melodicDubstep', result.melodicDebug);
+    assertUserBassTimeline('brostep', result.brostepDebug);
     for (const [genre, value] of Object.entries(result.additional)) {
       if (!value.started || value.debug.finalMode !== 'collider-backing+user-bass' || value.debug.finalGenre !== genre) {
         throw new Error(`${genre} did not use its Collider backing: ${JSON.stringify(value)}`);
       }
+      assertUserBassTimeline(genre, value.debug);
     }
     console.log('ENDING_INTEGRATION_OK');
     console.log(JSON.stringify(result, null, 2));

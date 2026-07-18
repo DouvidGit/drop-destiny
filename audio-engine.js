@@ -124,8 +124,24 @@
   var finalBackingSource = null;
   var finalBackingGain = null;
   var finalBackingGenre = null;
+  var finalUserBassWindowStart = 0;
+  var finalUserBassWindowEnd = 0;
+  var finalUserBassFirstNoteTime = 0;
+  var finalUserBassLastNoteEndTime = 0;
   var endingBackingCache = {};
   var lastFinalSongError = null;
+
+  // Matches every Collider arrangement: 2 intro + 3 build + 1 predrop +
+  // 4 dropA + 3 dropB + 1 final = 14 bars.
+  var COLLIDER_TIMELINE = Object.freeze({
+    introBars: 2,
+    buildBars: 3,
+    predropBars: 1,
+    dropABars: 4,
+    dropBBars: 3,
+    finalBars: 1,
+    totalBars: 14
+  });
 
   // Collider-rendered backing stems. Primary bassA/bassB is intentionally absent:
   // the persistent Web Audio bass synth below remains controlled by the user.
@@ -385,7 +401,6 @@
   };
 
   // Pattern Pad 频率（用于 playPattern / previewChoice）
-  var PAD_FREQS = { D: 55, F: 82.4, J: 110, K: 164.8 };
   var PAD_TYPES = { D: 'sawtooth', F: 'square', J: 'triangle', K: 'sine' };
 
   // ── 工具函数 ───────────────────────────────────────
@@ -2175,8 +2190,10 @@
     if (!spec) return 0;
     var bpm = spec.bpm;
     var stepDur = (60 / bpm) / 4;
-    var dropStart = startTime + 24 * stepDur; // 2-bar intro + 3-bar build + 1-bar pre-drop
-    var dropSteps = 7 * 16;                  // Drop A 4 bars + Drop B 3 bars
+    var preDropBars = COLLIDER_TIMELINE.introBars + COLLIDER_TIMELINE.buildBars + COLLIDER_TIMELINE.predropBars;
+    var dropStart = startTime + preDropBars * 16 * stepDur;
+    var dropASteps = COLLIDER_TIMELINE.dropABars * 16;
+    var dropSteps = (COLLIDER_TIMELINE.dropABars + COLLIDER_TIMELINE.dropBBars) * 16;
     var phrases = GENRE_BASS_PHRASES[genre] || GENRE_BASS_PHRASES.brostep;
     var variation = state.choices.variation || 'repeat';
     var synth = getSynthParams(state);
@@ -2192,6 +2209,11 @@
     var userEvents = (state.performance && state.performance.events) || [];
     var userBassByStep = {};
 
+    finalUserBassWindowStart = dropStart;
+    finalUserBassWindowEnd = dropStart + dropSteps * stepDur;
+    finalUserBassFirstNoteTime = 0;
+    finalUserBassLastNoteEndTime = 0;
+
     // User D/F performance events become additional primary-bass hits during Drop B.
     for (var ue = 0; ue < userEvents.length; ue++) {
       var userEvent = userEvents[ue];
@@ -2204,12 +2226,12 @@
     currentBpm = bpm;
     stepDuration = stepDur;
     updateLfoRate(state);
-    setGenreBusMix(genre, startTime, 'drop');
+    setGenreBusMix(genre, dropStart, 'drop');
 
     for (var step = 0; step < dropSteps; step++) {
       var time = dropStart + step * stepDur;
       var phraseStep = step % 32;
-      var dropB = step >= 64;
+      var dropB = step >= dropASteps;
       var phrase = dropB && variation !== 'repeat' ? phrases.b : phrases.a;
       var foundationHit = !!phrase[phraseStep];
       var userPad = dropB ? userBassByStep[step % 16] : null;
@@ -2226,6 +2248,8 @@
 
       var duration = stepDur * articulation.duration;
       if (userPad && !foundationHit) duration = Math.min(duration, stepDur * 2.1);
+      if (!finalUserBassFirstNoteTime) finalUserBassFirstNoteTime = time;
+      finalUserBassLastNoteEndTime = Math.max(finalUserBassLastNoteEndTime, time + duration);
       scheduleBassPitch(freq, time);
       scheduleBassColor(synth, freq, time, duration, articulation);
       triggerBassNote(time, duration);
@@ -2265,12 +2289,11 @@
     finalBackingGenre = genre;
     finalSongNodes.push(source, gain);
 
-    if (masterGain) smoothSet(masterGain.gain, muted ? 0 : 0.70, 0.025, t0);
-    scheduleUserBassOverBacking(state, genre, t0);
-
     finalSongStartTime = t0;
     finalSongDuration = buffer.duration;
     finalSongEndTime = t0 + buffer.duration;
+    if (masterGain) smoothSet(masterGain.gain, muted ? 0 : 0.70, 0.025, t0);
+    scheduleUserBassOverBacking(state, genre, t0);
     if (finalSongTimerId) clearTimeout(finalSongTimerId);
     finalSongTimerId = setTimeout(function () {
       if (token !== finalSongLoadToken) return;
@@ -2280,6 +2303,10 @@
       finalBackingSource = null;
       finalBackingGain = null;
       finalBackingGenre = null;
+      finalUserBassWindowStart = 0;
+      finalUserBassWindowEnd = 0;
+      finalUserBassFirstNoteTime = 0;
+      finalUserBassLastNoteEndTime = 0;
       silenceAndRestoreParams(state);
       finalSongState = null;
       if (finalSongCompleteCb) {
@@ -2995,6 +3022,10 @@
     finalBackingSource = null;
     finalBackingGain = null;
     finalBackingGenre = null;
+    finalUserBassWindowStart = 0;
+    finalUserBassWindowEnd = 0;
+    finalUserBassFirstNoteTime = 0;
+    finalUserBassLastNoteEndTime = 0;
     finalSongStartTime = 0;
     finalSongEndTime = 0;
     finalSongDuration = 0;
@@ -3015,11 +3046,26 @@
     var elapsed = Math.max(0, ctx.currentTime - finalSongStartTime);
     var duration = Math.max(0.001, finalSongDuration || (finalSongEndTime - finalSongStartTime));
     var progress = Math.max(0, Math.min(1, elapsed / duration));
-    var section = progress < 0.13 ? 'intro' :
-      progress < 0.35 ? 'build' :
-      progress < 0.40 ? 'predrop' :
-      progress < 0.67 ? 'dropA' :
-      progress < 0.92 ? 'dropB' : 'outro';
+    var section;
+    if (finalBackingSource) {
+      var barPosition = progress * COLLIDER_TIMELINE.totalBars;
+      var introEnd = COLLIDER_TIMELINE.introBars;
+      var buildEnd = introEnd + COLLIDER_TIMELINE.buildBars;
+      var predropEnd = buildEnd + COLLIDER_TIMELINE.predropBars;
+      var dropAEnd = predropEnd + COLLIDER_TIMELINE.dropABars;
+      var dropBEnd = dropAEnd + COLLIDER_TIMELINE.dropBBars;
+      section = barPosition < introEnd ? 'intro' :
+        barPosition < buildEnd ? 'build' :
+        barPosition < predropEnd ? 'predrop' :
+        barPosition < dropAEnd ? 'dropA' :
+        barPosition < dropBEnd ? 'dropB' : 'outro';
+    } else {
+      section = progress < 0.13 ? 'intro' :
+        progress < 0.35 ? 'build' :
+        progress < 0.40 ? 'predrop' :
+        progress < 0.67 ? 'dropA' :
+        progress < 0.92 ? 'dropB' : 'outro';
+    }
     return {
       playing: true,
       elapsed: elapsed,
@@ -3099,7 +3145,11 @@
       finalMode: finalBackingSource ? 'collider-backing+user-bass' : (isFinalSongPlaying ? 'synthesized-fallback' : 'idle'),
       finalGenre: finalBackingGenre,
       bpm: currentBpm,
-      synthParams: currentSynthParams ? Object.assign({}, currentSynthParams) : null
+      synthParams: currentSynthParams ? Object.assign({}, currentSynthParams) : null,
+      userBassWindowStart: finalSongStartTime && finalUserBassWindowStart ? finalUserBassWindowStart - finalSongStartTime : null,
+      userBassWindowEnd: finalSongStartTime && finalUserBassWindowEnd ? finalUserBassWindowEnd - finalSongStartTime : null,
+      userBassFirstNote: finalSongStartTime && finalUserBassFirstNoteTime ? finalUserBassFirstNoteTime - finalSongStartTime : null,
+      userBassLastNoteEnd: finalSongStartTime && finalUserBassLastNoteEndTime ? finalUserBassLastNoteEndTime - finalSongStartTime : null
     };
   }
 
