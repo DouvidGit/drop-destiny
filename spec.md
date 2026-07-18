@@ -241,7 +241,7 @@ Bass articulation（音高偏移、时值、Filter/FM/Wobble 表现）由 genre-
 | Melodic Dubstep | 157 |
 | Destiny Fusion | 48 |
 
-这说明单纯使用六维曼哈顿距离会严重偏向 Hybrid Trap，且某些高空间感路径会被错误判成 Riddim。原因是风格不只是"数值轮廓"，还存在决定性音乐语法，例如 Four-on-the-floor 几乎是 Bass House 的强锚点，Melodic Bass + Melodic Narrative 是 Melodic Dubstep 的强锚点。
+这说明单纯使用六维曼哈顿距离会严重偏向 Hybrid Trap，且某些高空间感路径会被错误判成 Riddim。原因是风格不只是"数值轮廓"，还存在决定性音乐语法，例如 Four-on-the-floor 几乎是 Bass House 的强锚点，而 Melodic Bass 配合由合成参数推导出的叙事型结构则是 Melodic Dubstep 的强锚点。
 
 因此采用 **DNA 相似度 + 风格锚点** 的混合判定。
 
@@ -280,7 +280,7 @@ finalScore(style) = 0.45 × dnaSimilarity(style)
 
 ### 5.6 可达性自动验证
 
-实现风格引擎时必须同时写一个仅供开发使用的枚举测试函数。`4 × 4 × 4 × 4 × 3 × 3 = 2304` 条"声音世界 × Bass × Groove × Structure × Variation × Drop"卡片路径使用固定的中性 Pattern，输出全部路径的结果分布。验收范围：
+实现风格引擎时必须同时写一个仅供开发使用的枚举测试函数。测试仍枚举 `4 × 4 × 4 × 4 × 3 × 3 = 2304` 组"声音世界 × Bass × Groove × 推导 Structure × 推导 Variation × 推导 Impact"状态，用代表性的合成器参数生成后三个维度；它们是内部验收状态，不是用户可见的卡片或 Pattern 编辑器。测试输出全部状态的结果分布。验收范围：
 
 - 每个主要风格至少占全部路径的 5%；
 - 任一主要风格不得超过 45%；
@@ -461,6 +461,8 @@ DROP_DESTINY/
 ├─ wavetables.js           # AKWF CC0 单周期波形数据
 ├─ audio-assets.js         # CC0 鼓组/Impact/Riser 采样（Base64 内嵌）
 ├─ ending-assets.js        # Collider 渲染的六风格结局伴奏（Base64 内嵌）
+├─ assets/fonts/           # 本地 Teko WOFF2 与 SIL OFL 许可证
+├─ docs/                   # WorkBuddy 使用记录、证据截图、复盘与清理记录
 ├─ spec.md                 # 本文件
 ├─ README.md               # 项目说明
 ├─ ASSET_LICENSES.md       # 第三方音频素材来源与许可
@@ -593,21 +595,21 @@ dev/
 | 统一视觉与音乐风格 | 红黑白高对比 Bass Music 风格，贯穿全流程 |
 | 双击 index.html 可离线运行 | 零外部依赖，纯前端 |
 | 适配手机和电脑 | 响应式布局，触摸 + 键鼠 |
-| 最终 ZIP < 50 MB | 以程序化合成 + 内嵌 Base64 为主 |
+| 最终 ZIP < 50 MB | 以程序化合成 + 内嵌 Base64 为主；打包脚本自动检查体积 |
 
 ---
 
 ## 附录：风格判定路径示例
 
-以下路径用于验证评分逻辑的正确性：
+以下状态用于验证评分逻辑的正确性。前三项来自可见选择，后三项由 Bass Forge 参数自动推导，并不作为额外题目出现：
 
 | 路径 | 选择组合 | 预期风格 |
 |------|---------|---------|
-| 极端残暴 | Abyss + Brutal + Half-time + Classic Drop + Mutate + Overload | Brostep |
-| 极简机械 | Abyss + Mechanical + Half-time + Minimal Tech + Repeat + Standard | Riddim Dubstep |
-| 舞池驱动 | Neon City + Mechanical + Four-on-the-floor + Minimal Tech + Repeat + Standard | Bass House |
-| 情感旋律 | Organic Forest + Melodic + Half-time + Melodic Narrative + Lift + Gentle | Melodic Dubstep |
-| 实验跨界 | Cosmic Void + Wobbly + Syncopated + Epic Journey + Mutate + Overload | Hybrid Trap |
-| 融合路线 | Abyss + Melodic + Half-time + Melodic Narrative + Mutate + Overload | Destiny Fusion |
+| 极端残暴 | Abyss + Brutal + Half-time + Classic Drop（推导）+ Mutate（推导）+ Overload（推导） | Brostep |
+| 极简机械 | Abyss + Mechanical + Half-time + Minimal Tech（推导）+ Repeat（推导）+ Standard（推导） | Riddim Dubstep |
+| 舞池驱动 | Neon City + Mechanical + Four-on-the-floor + Minimal Tech（推导）+ Repeat（推导）+ Standard（推导） | Bass House |
+| 情感旋律 | Organic Forest + Melodic + Half-time + Melodic Narrative（推导）+ Lift（推导）+ Gentle（推导） | Melodic Dubstep |
+| 实验跨界 | Cosmic Void + Wobbly + Syncopated + Epic Journey（推导）+ Mutate（推导）+ Overload（推导） | Hybrid Trap |
+| 融合路线 | Abyss + Melodic + Half-time + Melodic Narrative（推导）+ Mutate（推导）+ Overload（推导） | Destiny Fusion |
 
 > 注意：实际产品中 Structure / Variation / Drop 由合成参数自动推导，上表的选择组合用于验证评分引擎在 2304 路径枚举中的正确性。相同输入必须产生完全相同的结果。

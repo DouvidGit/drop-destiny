@@ -10,6 +10,8 @@
 2. 双击 `index.html`。
 3. 点击封面任意位置进入，开启声音。
 
+也可以直接访问线上版本：[drop-destiny.pages.dev](https://drop-destiny.pages.dev)。
+
 建议使用最新版 Chrome 或 Edge，并佩戴耳机体验低频与实时可视化。普通步骤使用电影宽银幕视觉，Bass Forge 会把同一块实时画面嵌入合成器中央开窗；`AUTO` 为自动模式，另外三种（SHRED / BUNKER / FRACTURE）为手动模式，可循环切换；`⛶` 可进入全屏。
 
 ## 创作流程
@@ -77,6 +79,8 @@ DROP_DESTINY/
 ├─ wavetables.js           # AKWF CC0 单周期波形
 ├─ audio-assets.js         # CC0 鼓组/Impact/Riser 采样（内嵌）
 ├─ ending-assets.js        # Collider 渲染的六风格结局伴奏（内嵌）
+├─ assets/fonts/           # 本地 Teko 字体与 SIL OFL 许可证
+├─ docs/                   # WorkBuddy 使用记录、截图证据与项目复盘
 ├─ spec.md                 # 产品规格书
 ├─ README.md               # 本文件
 ├─ ASSET_LICENSES.md       # 音频素材来源与许可
@@ -128,6 +132,10 @@ node dev/test-ending-integration.js
 node dev/test-visualizer.js
 ```
 
+## 提交包
+
+运行 `powershell -ExecutionPolicy Bypass -File dev/package-submission.ps1` 可生成 `dist/DROP_DESTINY_SUBMISSION.zip`。提交包只包含离线运行所需文件、许可证和任务文档，不包含开发脚本、SuperCollider 源码及测试导出物。
+
 ## 第三方素材
 
-第三方音频采样为 CC0，字体许可证另行记录。详见 [ASSET_LICENSES.md](ASSET_LICENSES.md)。
+第三方音频采样为 CC0，英文显示字体为本地嵌入的 Teko，采用 SIL Open Font License 1.1。详见 [ASSET_LICENSES.md](ASSET_LICENSES.md) 与 `assets/fonts/OFL.txt`。

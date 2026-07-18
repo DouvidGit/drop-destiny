@@ -137,7 +137,17 @@ async function main() {
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-bass-forge.png'), fullPage: false });
 
     await page.click('#visualFullscreenBtn');
-    await new Promise(resolve => setTimeout(resolve, 180));
+    await page.waitForFunction(() => {
+      const stage = document.getElementById('workbench');
+      const canvas = document.getElementById('wbCanvas');
+      if (document.fullscreenElement !== stage || !canvas.width || !canvas.height) return false;
+      const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      let visiblePixels = 0;
+      for (let i = 3; i < pixels.length; i += 256) {
+        if (pixels[i] > 12 && ++visiblePixels >= 10) return true;
+      }
+      return false;
+    }, { timeout: 3000 });
     const fullscreenStage = await page.evaluate(() => {
       const stage = document.getElementById('workbench');
       const canvas = document.getElementById('wbCanvas');
