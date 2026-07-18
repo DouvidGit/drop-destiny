@@ -2888,8 +2888,9 @@ header { position: relative; }
   }
   #app[data-phase="intro"] .intro-subtitle {
     position: absolute;
-    left: clamp(20px, 4vw, 66px);
-    bottom: clamp(34px, 7vh, 76px);
+    left: max(32.75vw, calc(50% - 275px));
+    top: calc(45% + clamp(3.6rem, 7.4vw, 7.6rem));
+    bottom: auto;
     margin: 0;
     padding: 5px 9px;
     color: #EA0029;
