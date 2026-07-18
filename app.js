@@ -843,10 +843,14 @@
     });
     html += '</div>';
 
-    // 观众反应
+    var styleDescription = r.isHidden
+      ? '重压、律动、旋律与意外并存——一条拒绝被单一标签定义的声音支线'
+      : (D.STYLE_PROFILES[r.primaryStyle] && D.STYLE_PROFILES[r.primaryStyle].description) || '由你的 Bass 与节奏选择共同塑造的最终声音。';
+
+    // 风格简介
     html += '<div class="result-reaction">';
-    html += '<div class="reaction-label">CROWD READOUT</div>';
-    html += '<div class="reaction-text">' + escapeHtml(r.audienceReaction) + '</div>';
+    html += '<div class="reaction-label">STYLE PROFILE</div>';
+    html += '<div class="reaction-text">' + escapeHtml(styleDescription) + '</div>';
     html += '</div>';
 
     dom.resultContent.innerHTML = html;
