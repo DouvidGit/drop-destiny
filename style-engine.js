@@ -15,7 +15,6 @@
   var STYLE_PROFILES = D.STYLE_PROFILES;
   var STYLE_ANCHORS = D.STYLE_ANCHORS;
   var PERF_PAD_ANCHORS = D.PERFORMANCE_PAD_ANCHORS;
-  var NEUTRAL_PATTERN = D.NEUTRAL_PATTERN;
 
   var STYLE_IDS = Object.keys(STYLE_PROFILES);
 
@@ -128,16 +127,6 @@
         if (s > catMax) catMax = s;
       }
       max += catMax;
-    }
-    return max;
-  }
-
-  function computeMaxPerfAnchor(styleId) {
-    var max = 0;
-    for (var pad in PERF_PAD_ANCHORS) {
-      var w = PERF_PAD_ANCHORS[pad][styleId] || 0;
-      var raw = 0.75 * w; // (1.0 - 0.25) * w
-      if (raw > max) max = raw;
     }
     return max;
   }
@@ -338,19 +327,6 @@
     }
 
     // 确定性反应文案选择
-    var reactionStyle = isHidden ? 'destinyFusion' : primary;
-    var pool = D.REACTIONS[reactionStyle] || ['未知风格。'];
-    var hash = 0;
-    var ch = state.choices;
-    for (var k in ch) {
-      if (ch[k]) {
-        for (var ci = 0; ci < ch[k].length; ci++) {
-          hash = (hash * 31 + ch[k].charCodeAt(ci)) % 100000;
-        }
-      }
-    }
-    var reaction = pool[hash % pool.length];
-
     return {
       dna: dna,
       primaryStyle: isHidden ? 'destinyFusion' : primary,
@@ -358,8 +334,7 @@
       isHidden: isHidden,
       dnaSimilarities: dnaSims,
       anchorSimilarities: anchorSims,
-      finalScores: finalScores,
-      audienceReaction: reaction
+      finalScores: finalScores
     };
   }
 
@@ -401,7 +376,6 @@
     computePerformanceDna: computePerformanceDna,
     computePerformanceAnchors: computePerformanceAnchors,
     computeMaxCardAnchor: computeMaxCardAnchor,
-    computeMaxPerfAnchor: computeMaxPerfAnchor,
     deriveBassDrivenChoices: deriveBassDrivenChoices,
     MAX_ANCHORS: MAX_ANCHORS,
     STYLE_IDS: STYLE_IDS

@@ -15,14 +15,6 @@
   var PHASES = ['intro', 'soundWorld', 'bassCore', 'rhythm', 'bassForge', 'result'];
   var STAGE_PHASES = ['soundWorld', 'bassCore', 'rhythm', 'bassForge'];
   var DNA_AXES = D.DNA_AXES;
-  var DNA_LABELS = {
-    rhythm: 'Rhythm', aggression: 'Aggression', harmony: 'Harmony',
-    movement: 'Movement', space: 'Space', surprise: 'Surprise'
-  };
-  var DNA_COLORS = {
-    rhythm: '#FFCE00', aggression: '#FF3B18', harmony: '#FFE9B0',
-    movement: '#FF7A00', space: '#FFFFFF', surprise: '#A7190B'
-  };
 
   // ── 状态（spec section 5）──────────────────────────
   var STATE = createInitialState();
@@ -682,13 +674,6 @@
     });
   }
 
-  function updateVariationUI() {
-    var btns = document.querySelectorAll('.variation-btn');
-    btns.forEach(function (btn) {
-      btn.classList.toggle('active', btn.dataset.variation === STATE.choices.variation);
-    });
-  }
-
   function goNext() {
     var idx = PHASES.indexOf(STATE.phase);
     if (idx < 0 || idx >= PHASES.length - 1) return;
@@ -874,87 +859,6 @@
       existing.textContent = '';
       existing.style.display = 'none';
     }
-  }
-
-  function renderRadarSVG(dna, primaryStyle) {
-    var cx = 140, cy = 140, maxR = 100;
-    var n = DNA_AXES.length;
-    var points = [];
-    var idealPoints = [];
-    var ideal = D.STYLE_PROFILES[primaryStyle] ? D.STYLE_PROFILES[primaryStyle].dna : null;
-
-    for (var i = 0; i < n; i++) {
-      var angle = (Math.PI * 2 * i / n) - Math.PI / 2;
-      var val = dna[DNA_AXES[i]] / 100;
-      var x = cx + Math.cos(angle) * maxR * val;
-      var y = cy + Math.sin(angle) * maxR * val;
-      points.push(x.toFixed(1) + ',' + y.toFixed(1));
-
-      if (ideal) {
-        var iv = ideal[DNA_AXES[i]] / 100;
-        var ix = cx + Math.cos(angle) * maxR * iv;
-        var iy = cy + Math.sin(angle) * maxR * iv;
-        idealPoints.push(ix.toFixed(1) + ',' + iy.toFixed(1));
-      }
-    }
-
-    var svg = '<svg viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">';
-    // 背景网格
-    for (var g = 1; g <= 4; g++) {
-      var gr = maxR * g / 4;
-      var gp = [];
-      for (var gi = 0; gi < n; gi++) {
-        var ga = (Math.PI * 2 * gi / n) - Math.PI / 2;
-        gp.push((cx + Math.cos(ga) * gr).toFixed(1) + ',' + (cy + Math.sin(ga) * gr).toFixed(1));
-      }
-        svg += '<polygon points="' + gp.join(' ') + '" fill="none" stroke="#4b2415" stroke-width="1"/>';
-    }
-    // 轴线
-    for (var ai = 0; ai < n; ai++) {
-      var aa = (Math.PI * 2 * ai / n) - Math.PI / 2;
-      svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + (cx + Math.cos(aa) * maxR).toFixed(1) + '" y2="' + (cy + Math.sin(aa) * maxR).toFixed(1) + '" stroke="#4b2415" stroke-width="1"/>';
-    }
-    // 理想轮廓
-    if (idealPoints.length > 0) {
-      svg += '<polygon points="' + idealPoints.join(' ') + '" fill="none" stroke="#D72F19" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.85"/>';
-    }
-    // 用户 DNA
-    svg += '<polygon points="' + points.join(' ') + '" fill="rgba(255,206,0,0.14)" stroke="#FFCE00" stroke-width="2"/>';
-    // 数据点
-    for (var pi = 0; pi < n; pi++) {
-      var p = points[pi].split(',');
-      svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="#FFCE00"/>';
-    }
-    // 标签
-    for (var li = 0; li < n; li++) {
-      var la = (Math.PI * 2 * li / n) - Math.PI / 2;
-      var lr = maxR + 18;
-      var lx = cx + Math.cos(la) * lr;
-      var ly = cy + Math.sin(la) * lr;
-      svg += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#BFA98B">' + DNA_LABELS[DNA_AXES[li]] + '</text>';
-    }
-    svg += '</svg>';
-    return svg;
-  }
-
-  function renderScoreBars(r) {
-    var html = '';
-    var sorted = SE.STYLE_IDS.slice().sort(function (a, b) {
-      return r.finalScores[b] - r.finalScores[a];
-    });
-    sorted.forEach(function (sid, idx) {
-      var label = D.STYLE_PROFILES[sid] ? D.STYLE_PROFILES[sid].label : sid;
-      var score = r.finalScores[sid];
-      var cls = '';
-      if (sid === r.primaryStyle && !r.isHidden) cls = 'primary';
-      else if (sid === r.secondaryStyle) cls = 'secondary';
-      html += '<div class="score-row ' + cls + '">';
-      html += '<span class="score-name">' + escapeHtml(label) + '</span>';
-      html += '<div class="score-track"><div class="score-fill" style="width:' + score.toFixed(1) + '%"></div></div>';
-      html += '<span class="score-val">' + score.toFixed(1) + '</span>';
-      html += '</div>';
-    });
-    return html;
   }
 
   function escapeHtml(str) {

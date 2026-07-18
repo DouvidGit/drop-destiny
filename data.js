@@ -1,6 +1,6 @@
 /**
  * DROP//DESTINY — data.js
- * 所有选择、DNA 修正、Bass 预设、风格轮廓、风格锚点、观众反应文案。
+ * 所有选择、DNA 修正、Bass 预设、风格轮廓与风格锚点。
  * 纯数据文件，不包含逻辑函数。通过 window.DropDestinyData 暴露。
  */
 (function (global) {
@@ -262,35 +262,6 @@
     K: { melodicDubstep: 8 }
   };
 
-  // ── 观众反应文案 ──────────────────────────────────
-
-  var REACTIONS = {
-    riddimDubstep: [
-      '人群开始集体点头，低频把胸腔按在地上——这就是 Riddim 的重量。',
-      '极简的重复击穿了舞池，每个人都陷入了同一频率的催眠。'
-    ],
-    brostep: [
-      'Drop 砸下来的瞬间，前排直接炸开——这就是 Brostep 的暴力美学。',
-      '扭曲的 Bass 像电钻一样撕开空气，有人捂耳有人尖叫。'
-    ],
-    hybridTrap: [
-      '没人预料到那个 Trap Fill——实验性的跨界让全场措手不及。',
-      '奇形怪状的 Bass 配上陷阱鼓组，舞池里出现了新的律动。'
-    ],
-    bassHouse: [
-      '四四拍一响，整个房间开始抖动——Bass House 的舞池魔法生效了。',
-      '弹跳的律动让所有人都动了起来，这就是舞池音乐的力量。'
-    ],
-    melodicDubstep: [
-      '旋律响起的瞬间，空气变柔了——有人闭眼，有人眼眶发热。',
-      '辽阔的和声铺开后，Drop 的情感冲击让时间慢了一拍。'
-    ],
-    destinyFusion: [
-      '观众先是困惑，然后爆发出欢呼——他们听到了从未听过的东西。',
-      '你打破了所有分类，创造了一种只属于你的声音。这就是 Destiny Fusion。'
-    ]
-  };
-
   // ── 枚举测试用的固定中性 Live Drop Pattern ──────────
   // 4 个 Pad 各用一次，无连续重复，density = 0.5
 
@@ -313,7 +284,6 @@
     STYLE_PROFILES: STYLE_PROFILES,
     STYLE_ANCHORS: STYLE_ANCHORS,
     PERFORMANCE_PAD_ANCHORS: PERFORMANCE_PAD_ANCHORS,
-    REACTIONS: REACTIONS,
     NEUTRAL_PATTERN: NEUTRAL_PATTERN
   };
 

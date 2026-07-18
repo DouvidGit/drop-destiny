@@ -385,7 +385,6 @@
   };
 
   // Pattern Pad 频率（用于 playPattern / previewChoice）
-  var PAD_FREQS = { D: 55, F: 82.4, J: 110, K: 164.8 };
   var PAD_TYPES = { D: 'sawtooth', F: 'square', J: 'triangle', K: 'sine' };
 
   // ── 工具函数 ───────────────────────────────────────

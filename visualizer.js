@@ -348,9 +348,7 @@
     if (experience.phase === 'bassCore') return 'synth';
     if (experience.phase === 'rhythm') return 'rhythm';
     if (experience.phase === 'bassForge') return 'synth';
-    if (experience.phase === 'groove') return 'rhythm';
-    if (experience.phase === 'arrangement') return 'structure';
-    if (experience.phase === 'liveDrop' || experience.phase === 'result') return resolveStyle() || 'kaleido';
+    if (experience.phase === 'result') return resolveStyle() || 'kaleido';
     return 'world';
   }
 
@@ -359,11 +357,10 @@
     var phaseLabels = {
       intro: 'DESTINY SIGNAL', soundWorld: 'WORLD FREQUENCY', bassCore: 'CORE MATERIAL',
       rhythm: 'RHYTHM CHASSIS', bassForge: 'BASS OSCILLOSCOPE',
-      groove: 'GROOVE VECTOR GRID', arrangement: 'ARRANGEMENT ORBIT', liveDrop: 'LIVE DROP MATRIX',
       result: style ? STYLE_LABELS[style] : 'DESTINY RESOLUTION'
     };
     metrics.scene = scene;
-    metrics.sceneLabel = style && (experience.phase === 'liveDrop' || experience.phase === 'result' || playback.isFinal) ?
+    metrics.sceneLabel = style && (experience.phase === 'result' || playback.isFinal) ?
       STYLE_LABELS[style] : (phaseLabels[experience.phase] || 'DESTINY SIGNAL');
     metrics.sectionLabel = playback.isFinal ? (SECTION_LABELS[playback.section] || 'SONG / LIVE') : 'CREATION LOOP';
     metrics.mode = MANUAL_MODES[manualModeIndex];
@@ -580,34 +577,6 @@
     }
     ctx.restore();
     drawRadialSpectrum(ctx, w, h, time, palette, 0.06, rhythm === 'fourOnFloor' ? 4 : rhythm === 'breakbeat' ? 7 : 2);
-  }
-
-  function drawStructure(ctx, w, h, time, palette) {
-    var structure = experience.choices.structure || 'classicDrop';
-    var lanes = structure === 'epicJourney' ? 7 : structure === 'melodicNarrative' ? 5 : 4;
-    var cx = w / 2;
-    var cy = h / 2;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (var lane = 0; lane < lanes; lane++) {
-      var radius = Math.min(w, h) * (0.1 + lane * 0.065) + beatPulse * lane * 4;
-      var start = time * 0.0002 * (lane % 2 ? 1 : -1) + lane;
-      var span = Math.PI * (0.55 + (logBands[lane * 5] || 0) * 1.3);
-      ctx.strokeStyle = alphaColor(lane % 2 ? palette.a : palette.b, 0.12 + smooth.mid * 0.4);
-      ctx.lineWidth = 2 + (logBands[lane * 6] || 0) * 8;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, start, start + span);
-      ctx.stroke();
-    }
-    for (var marker = 0; marker < 24; marker++) {
-      var angle = marker / 24 * Math.PI * 2 + time * 0.0001;
-      var radius2 = Math.min(w, h) * (0.22 + (logBands[marker * 2] || 0) * 0.2);
-      ctx.fillStyle = alphaColor(marker % 3 ? palette.c : palette.b, 0.14 + smooth.treble * 0.45);
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(angle) * radius2, cy + Math.sin(angle) * radius2, 1 + (logBands[marker * 2] || 0) * 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
   }
 
   function drawRiddim(ctx, w, h, time, palette, mutate) {
@@ -881,8 +850,6 @@
       drawSynth(ctx, w, h, time, palette);
     } else if (scene === 'rhythm') {
       drawRhythm(ctx, w, h, time, palette);
-    } else if (scene === 'structure') {
-      drawStructure(ctx, w, h, time, palette);
     } else if (scene === 'build') {
       drawBuild(ctx, w, h, time, palette);
     } else if (scene === 'vacuum') {
@@ -1057,10 +1024,6 @@
     return MODE_LABELS[MANUAL_MODES[manualModeIndex]];
   }
 
-  function getMode() {
-    return MANUAL_MODES[manualModeIndex];
-  }
-
   function getMetrics() {
     return {
       bass: metrics.bass, mid: metrics.mid, treble: metrics.treble, rms: metrics.rms,
@@ -1094,7 +1057,6 @@
     setPlayback: setPlayback,
     pulsePad: pulsePad,
     cycleMode: cycleMode,
-    getMode: getMode,
     getMetrics: getMetrics,
     resize: resize,
     stop: stop
