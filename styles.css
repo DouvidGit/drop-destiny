@@ -2688,6 +2688,10 @@ footer { background-color: #EA0029; }
 .visual-action-btn:hover,
 .visual-action-btn:focus-visible { color: #EA0029; border-color: #000; background: #000; }
 .visual-stage .wb-play-btn { color: #EA0029; background: #000; }
+.visual-stage.synth-docked,
+.visual-stage:fullscreen {
+  background: #EA0029;
+}
 
 body::after {
   content: '';
@@ -2696,40 +2700,28 @@ body::after {
   z-index: 999;
   pointer-events: none;
   opacity: 0;
-  background: radial-gradient(circle at 50% 44%, var(--visual-flash-color, #fff) 0 12%, #fff 34%, transparent 76%);
+  background: radial-gradient(circle at 50% 44%, var(--visual-flash-color, #fff) 0 12%, rgba(255,255,255,0.72) 34%, transparent 76%);
   mix-blend-mode: screen;
 }
-body.visual-page-flash-a::after { animation: fullPageFlashA 180ms steps(3, end) both; }
-body.visual-page-flash-b::after { animation: fullPageFlashB 180ms steps(3, end) both; }
+body.visual-page-flash-a::after { animation: fullPageFlashA 260ms steps(4, end) both; }
+body.visual-page-flash-b::after { animation: fullPageFlashB 260ms steps(4, end) both; }
 @keyframes fullPageFlashA {
   0% { opacity: 0; }
-  18% { opacity: 0.34; }
-  52% { opacity: 0.12; }
+  14% { opacity: 0.34; }
+  30% { opacity: 0; }
+  48% { opacity: 0.18; }
+  68% { opacity: 0; }
   100% { opacity: 0; }
 }
 @keyframes fullPageFlashB {
   0% { opacity: 0; }
-  18% { opacity: 0.34; }
-  52% { opacity: 0.12; }
+  14% { opacity: 0.34; }
+  30% { opacity: 0; }
+  48% { opacity: 0.18; }
+  68% { opacity: 0; }
   100% { opacity: 0; }
 }
 
-.intro-title,
-#app[data-phase="intro"] .intro-title {
-  font-family: "Bahnschrift Condensed", "Arial Narrow", Impact, sans-serif;
-  font-stretch: condensed;
-  font-weight: 800;
-  letter-spacing: 0.055em;
-  text-shadow: none;
-}
-@media (min-width: 769px) {
-  #app[data-phase="intro"] .intro-title {
-    top: 46%;
-    width: min(88vw, 1380px);
-    font-size: clamp(9rem, 21vw, 21rem);
-    line-height: 0.76;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   body::after { display: none; }
 }
@@ -2904,5 +2896,23 @@ header { position: relative; }
     background: #000;
     font: 900 0.72rem var(--font-mono);
     letter-spacing: 0.13em;
+  }
+}
+
+/* Must remain last: the legacy cover block above uses a font shorthand. */
+.intro-title,
+#app[data-phase="intro"] .intro-title {
+  font-family: "Agency FB", Bahnschrift, "Arial Narrow", Impact, sans-serif;
+  font-stretch: condensed;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: none;
+}
+@media (min-width: 769px) {
+  #app[data-phase="intro"] .intro-title {
+    top: 45%;
+    width: min(78vw, 1220px);
+    font-size: clamp(7rem, 17vw, 17rem);
+    line-height: 0.8;
   }
 }

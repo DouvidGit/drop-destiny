@@ -78,8 +78,7 @@ async function main() {
         openSurface: {
           borderWidth: stageStyle.borderTopWidth,
           background: stageStyle.backgroundColor,
-          canvasBackground: canvasStyle.backgroundColor,
-          pageFlashTriggered: document.body.classList.contains('visual-page-flash-a') || document.body.classList.contains('visual-page-flash-b')
+          canvasBackground: canvasStyle.backgroundColor
         },
         main: { width: main.width, left: main.left, right: main.right },
         canvas: { width: canvas.width, height: canvas.height },
@@ -109,6 +108,11 @@ async function main() {
       const main = document.getElementById('main');
       const macro = document.getElementById('macroPanel').getBoundingClientRect();
       const stage = document.getElementById('workbench').getBoundingClientRect();
+      const stageNode = document.getElementById('workbench');
+      const stageCanvas = document.getElementById('wbCanvas');
+      const stagePixels = stageCanvas.getContext('2d').getImageData(0, 0, stageCanvas.width, stageCanvas.height).data;
+      let visiblePixels = 0;
+      for (let i = 3; i < stagePixels.length; i += 256) if (stagePixels[i] > 12) visiblePixels++;
       const header = document.querySelector('#bassForge .synth-header').getBoundingClientRect();
       const rack = document.querySelector('#bassForge .wavetable-rack').getBoundingClientRect();
       const consoleBody = document.querySelector('#bassForge .synth-console-body').getBoundingClientRect();
@@ -125,10 +129,29 @@ async function main() {
         driveVisual: Visualizer.getMetrics().drive,
         nextEnabled: !document.querySelector('#bassForge [data-next]').disabled,
         docked: document.getElementById('workbench').parentElement.id === 'synthVisualDock',
-        stageRatio: stage.width / stage.height
+        stageRatio: stage.width / stage.height,
+        stageBackground: getComputedStyle(stageNode).backgroundColor,
+        visiblePixels
       };
     });
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-bass-forge.png'), fullPage: false });
+
+    await page.click('#visualFullscreenBtn');
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const fullscreenStage = await page.evaluate(() => {
+      const stage = document.getElementById('workbench');
+      const canvas = document.getElementById('wbCanvas');
+      const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      let visiblePixels = 0;
+      for (let i = 3; i < pixels.length; i += 256) if (pixels[i] > 12) visiblePixels++;
+      return {
+        active: document.fullscreenElement === stage,
+        background: getComputedStyle(stage).backgroundColor,
+        visiblePixels
+      };
+    });
+    if (fullscreenStage.active) await page.evaluate(() => document.exitFullscreen());
+    await new Promise(resolve => setTimeout(resolve, 120));
 
     await page.click('#bassForge [data-next]');
     await page.waitForSelector('#result.active');
@@ -182,7 +205,8 @@ async function main() {
         sceneLabel: document.getElementById('visualSceneLabel').textContent,
         sectionLabel: document.getElementById('visualSectionLabel').textContent,
         metrics: Visualizer.getMetrics(),
-        litRatio: total ? lit / total : 0
+        litRatio: total ? lit / total : 0,
+        pageFlashTriggered: document.body.classList.contains('visual-page-flash-a') || document.body.classList.contains('visual-page-flash-b')
       };
     });
     await page.screenshot({ path: path.join(exportDir, 'visualizer-qa-drop.png'), fullPage: false });
@@ -236,13 +260,17 @@ async function main() {
     if (introGlitchResidualPixels > 0) throw new Error('Intro pointer glitch left a visible trail.');
     if (!creation.appActive || creation.stage.width <= creation.main.width || creation.stage.width / creation.stage.height < 2) throw new Error('Desktop cinema visual stage failed.');
     if (creation.openSurface.borderWidth !== '0px' || creation.openSurface.background !== 'rgba(0, 0, 0, 0)' ||
-        creation.openSurface.canvasBackground !== 'rgba(0, 0, 0, 0)' || !creation.openSurface.pageFlashTriggered) {
+        creation.openSurface.canvasBackground !== 'rgba(0, 0, 0, 0)') {
       throw new Error(`Issue #2 open visualization surface failed: ${JSON.stringify(creation.openSurface)}`);
     }
     if (!bassForge.macroVisible || bassForge.mainOverflow > 1 || bassForge.knobCount < 10 || !bassForge.nextEnabled || !bassForge.docked ||
-        Math.abs(bassForge.stageRatio - 1) > 0.08 || bassForge.header.top < bassForge.macro.top - 1 ||
+        Math.abs(bassForge.stageRatio - 1) > 0.08 || bassForge.stageBackground !== 'rgb(234, 0, 41)' || bassForge.visiblePixels < 10 ||
+        bassForge.header.top < bassForge.macro.top - 1 ||
         bassForge.rack.top < bassForge.header.bottom - 1 || bassForge.consoleBody.bottom > bassForge.macro.bottom + 1) {
       throw new Error('Bass Forge synthesizer layout failed.');
+    }
+    if (!fullscreenStage.active || fullscreenStage.background !== 'rgb(234, 0, 41)' || fullscreenStage.visiblePixels < 10) {
+      throw new Error(`Fullscreen red visualizer failed: ${JSON.stringify(fullscreenStage)}`);
     }
     if (bassForge.driveVisual < 0.78 || !/BURN|MELTDOWN/.test(bassForge.driveLabel)) throw new Error('Drive did not reach the visual heat system.');
     if (!simplifiedFlow.resultActive || simplifiedFlow.progressDots !== 4 || simplifiedFlow.removedStages !== 0) throw new Error('Simplified Bass-first flow failed.');
@@ -251,6 +279,7 @@ async function main() {
       throw new Error('Final style/section did not reach the visualizer HUD.');
     }
     if (final.litRatio < 0.04) throw new Error('Canvas appears visually empty.');
+    if (!final.pageFlashTriggered) throw new Error('Drop section did not trigger the restored full-page flash.');
     if (new Set(Object.values(styleScenes)).size !== 6) throw new Error('Style visual scenes are not distinct.');
     if (modeAfterClick !== 'SHRED') throw new Error('Manual visual mode did not cycle.');
 
