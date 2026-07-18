@@ -31,6 +31,8 @@
   var logBands = new Float32Array(48);
   var bassHistory = [];
   var lastBeatAt = 0;
+  var lastPageFlashAt = 0;
+  var pageFlashVariant = false;
   var beatPulse = 0;
   var transitionFlash = 0;
   var theme = 'default';
@@ -71,11 +73,11 @@
   var padBursts = [];
 
   var THEMES = {
-    abyss:         { bg: '#030303', a: '#FFFFFF', b: '#A60019', c: '#5B0010' },
-    neonCity:      { bg: '#050505', a: '#F4F4F4', b: '#FF0033', c: '#FFCE00' },
-    organicForest: { bg: '#060303', a: '#EADDD5', b: '#B00020', c: '#6E0615' },
-    cosmicVoid:    { bg: '#010101', a: '#EA0029', b: '#FFFFFF', c: '#606060' },
-    default:       { bg: '#030303', a: '#FFFFFF', b: '#EA0029', c: '#5A0712' }
+    abyss:         { bg: '#EA0029', a: '#FFFFFF', b: '#57000D', c: '#000000' },
+    neonCity:      { bg: '#EA0029', a: '#FFFFFF', b: '#000000', c: '#FFCE00' },
+    organicForest: { bg: '#EA0029', a: '#F6E7C1', b: '#4A000B', c: '#000000' },
+    cosmicVoid:    { bg: '#EA0029', a: '#FFFFFF', b: '#000000', c: '#700014' },
+    default:       { bg: '#EA0029', a: '#FFFFFF', b: '#000000', c: '#680010' }
   };
 
   var STYLE_PALETTES = {
@@ -180,11 +182,20 @@
       c: colorMix(world.c, style.c, 0.62)
     } : world;
     return {
-      bg: colorMix(base.bg, '#000000', 0.34 + drive * 0.42),
+      bg: base.bg,
       a: colorMix(base.a, '#FFFFFF', drive * 0.18),
       b: colorMix(base.b, '#FF0033', drive * 0.82),
       c: colorMix(base.c, '#FFFFFF', drive * 0.68)
     };
+  }
+
+  function triggerPageFlash(color, now) {
+    if (reducedMotion || !document.body || now - lastPageFlashAt < 145) return;
+    lastPageFlashAt = now;
+    pageFlashVariant = !pageFlashVariant;
+    document.body.style.setProperty('--visual-flash-color', color || '#FFFFFF');
+    document.body.classList.remove('visual-page-flash-a', 'visual-page-flash-b');
+    document.body.classList.add(pageFlashVariant ? 'visual-page-flash-a' : 'visual-page-flash-b');
   }
 
   function ensureBuffers() {
@@ -899,6 +910,10 @@
     var dropBoost = experience.choices.drop === 'overload' ? 1.24 : experience.choices.drop === 'gentle' ? 0.78 : 1;
     energy *= dropBoost;
 
+    if ((metrics.beat && energy > 0.07) || transitionFlash > 0.96) {
+      triggerPageFlash(palette.a, now);
+    }
+
     frameCtx.setTransform(1, 0, 0, 1, 0, 0);
     frameCtx.globalCompositeOperation = 'source-over';
     frameCtx.fillStyle = palette.bg;
@@ -1046,6 +1061,10 @@
     rafId = null;
     if (resizeObserver) resizeObserver.disconnect();
     resizeObserver = null;
+    if (document.body) {
+      document.body.classList.remove('visual-page-flash-a', 'visual-page-flash-b');
+      document.body.style.removeProperty('--visual-flash-color');
+    }
   }
 
   global.Visualizer = {

@@ -2645,6 +2645,95 @@ footer { background-color: #EA0029; }
   }
 }
 
+/* Issue #2 experiment: the red page becomes the visualization surface. */
+.wb-canvas,
+.visual-stage,
+.visual-stage:not(.synth-docked) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.visual-stage:not(.synth-docked) { border-width: 0; }
+.visual-stage::before {
+  box-shadow: none;
+}
+.visual-scanlines {
+  opacity: 0.1;
+  mix-blend-mode: multiply;
+  background: repeating-linear-gradient(180deg, transparent 0 5px, rgba(0,0,0,0.08) 6px);
+}
+.visual-hud { text-shadow: none; }
+.visual-hud-bottom {
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+}
+.visual-readout strong,
+.visual-kicker,
+.visual-stage-state,
+.visual-stage .wb-info,
+.visual-meter { color: #000; }
+.visual-live-dot { background: #000; box-shadow: none; }
+.visual-reticle { border-color: rgba(0,0,0,0.32); }
+.visual-reticle::before,
+.visual-reticle::after,
+.visual-reticle span::before,
+.visual-reticle span::after { background: rgba(0,0,0,0.48); }
+.visual-meter i { background: rgba(0,0,0,0.16); }
+.visual-action-btn {
+  color: #000;
+  border-color: #000;
+  background: transparent;
+}
+.visual-action-btn:hover,
+.visual-action-btn:focus-visible { color: #EA0029; border-color: #000; background: #000; }
+.visual-stage .wb-play-btn { color: #EA0029; background: #000; }
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 44%, var(--visual-flash-color, #fff) 0 12%, #fff 34%, transparent 76%);
+  mix-blend-mode: screen;
+}
+body.visual-page-flash-a::after { animation: fullPageFlashA 180ms steps(3, end) both; }
+body.visual-page-flash-b::after { animation: fullPageFlashB 180ms steps(3, end) both; }
+@keyframes fullPageFlashA {
+  0% { opacity: 0; }
+  18% { opacity: 0.34; }
+  52% { opacity: 0.12; }
+  100% { opacity: 0; }
+}
+@keyframes fullPageFlashB {
+  0% { opacity: 0; }
+  18% { opacity: 0.34; }
+  52% { opacity: 0.12; }
+  100% { opacity: 0; }
+}
+
+.intro-title,
+#app[data-phase="intro"] .intro-title {
+  font-family: "Bahnschrift Condensed", "Arial Narrow", Impact, sans-serif;
+  font-stretch: condensed;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-shadow: none;
+}
+@media (min-width: 769px) {
+  #app[data-phase="intro"] .intro-title {
+    top: 46%;
+    width: min(88vw, 1380px);
+    font-size: clamp(9rem, 21vw, 21rem);
+    line-height: 0.76;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::after { display: none; }
+}
+
 /* Final cover/navigation polish. */
 ::selection {
   color: #000;

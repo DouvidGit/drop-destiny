@@ -67,12 +67,20 @@ async function main() {
 
     const creation = await page.evaluate(() => {
       const stage = document.getElementById('workbench').getBoundingClientRect();
+      const stageStyle = getComputedStyle(document.getElementById('workbench'));
       const main = document.getElementById('main').getBoundingClientRect();
       const canvas = document.getElementById('wbCanvas');
+      const canvasStyle = getComputedStyle(canvas);
       const metrics = Visualizer.getMetrics();
       return {
         appActive: document.getElementById('app').classList.contains('visual-active'),
         stage: { width: stage.width, height: stage.height, left: stage.left, right: stage.right },
+        openSurface: {
+          borderWidth: stageStyle.borderTopWidth,
+          background: stageStyle.backgroundColor,
+          canvasBackground: canvasStyle.backgroundColor,
+          pageFlashTriggered: document.body.classList.contains('visual-page-flash-a') || document.body.classList.contains('visual-page-flash-b')
+        },
         main: { width: main.width, left: main.left, right: main.right },
         canvas: { width: canvas.width, height: canvas.height },
         metrics,
@@ -227,6 +235,10 @@ async function main() {
     if (introGlitchPixels < 1) throw new Error('Intro pointer glitch did not render.');
     if (introGlitchResidualPixels > 0) throw new Error('Intro pointer glitch left a visible trail.');
     if (!creation.appActive || creation.stage.width <= creation.main.width || creation.stage.width / creation.stage.height < 2) throw new Error('Desktop cinema visual stage failed.');
+    if (creation.openSurface.borderWidth !== '0px' || creation.openSurface.background !== 'rgba(0, 0, 0, 0)' ||
+        creation.openSurface.canvasBackground !== 'rgba(0, 0, 0, 0)' || !creation.openSurface.pageFlashTriggered) {
+      throw new Error(`Issue #2 open visualization surface failed: ${JSON.stringify(creation.openSurface)}`);
+    }
     if (!bassForge.macroVisible || bassForge.mainOverflow > 1 || bassForge.knobCount < 10 || !bassForge.nextEnabled || !bassForge.docked ||
         Math.abs(bassForge.stageRatio - 1) > 0.08 || bassForge.header.top < bassForge.macro.top - 1 ||
         bassForge.rack.top < bassForge.header.bottom - 1 || bassForge.consoleBody.bottom > bassForge.macro.bottom + 1) {
